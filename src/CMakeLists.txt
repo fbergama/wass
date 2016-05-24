@@ -1,0 +1,106 @@
+CMAKE_MINIMUM_REQUIRED( VERSION 3.1 )
+PROJECT( WASS )
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+
+set(CMAKE_CXX_STANDARD 11)
+
+
+# Setup default installation dir
+#
+IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
+SET( CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/../dist" CACHE PATH "Install prefix" FORCE )
+ENDIF()
+
+# Set default CMake build type
+if( NOT CMAKE_BUILD_TYPE )
+    set( CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE )
+endif()
+
+
+
+# Search for required dependencies 
+#
+#
+FIND_PACKAGE( OpenCV REQUIRED )
+IF( OpenCV_FOUND )
+    MESSAGE( STATUS "OpenCV Version ${OpenCV_VERSION} found.")
+ENDIF()
+
+IF( NOT Boost_INCLUDE_DIRS )
+    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_MULTITHREADED ON)  
+    set(Boost_USE_STATIC_RUNTIME OFF)
+    find_package(Boost 1.58.0 REQUIRED COMPONENTS program_options system date_time filesystem log )
+    IF( NOT Boost_FOUND )
+        MESSAGE( ERROR, " Boost was not found. Please set BOOST_ROOT path variable")
+    ENDIF()
+ENDIF()
+
+
+####################################
+# RPATH HANDLING
+####################################
+
+# use, i.e. don't skip the full RPATH for the build tree
+SET(CMAKE_SKIP_BUILD_RPATH  FALSE)
+
+# when building, don't use the install RPATH already
+# (but later on when installing)
+SET(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+SET(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+
+
+# the RPATH to be used when installing, but only if it's not a system directory
+#LIST(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
+#IF("${isSystemDir}" STREQUAL "-1")
+#   SET(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+#ENDIF("${isSystemDir}" STREQUAL "-1")
+
+
+####################################
+
+# Configure file
+SET( WASS_VERSION_STR "1.0" )
+execute_process( COMMAND "git"  "describe" "--all" "--long" RESULT_VARIABLE COMMAND_RETURN_CODE OUTPUT_VARIABLE WASS_GIT_VERSION_STR ERROR_QUIET )
+MESSAGE( STATUS "Command result: ${COMMAND_RETURN_CODE}")
+IF( ${COMMAND_RETURN_CODE} EQUAL 0 )
+    MESSAGE( STATUS "Version: ${WASS_GIT_VERSION_STR}")
+    SET( WASS_VERSION_STR "${WASS_VERSION_STR}_${WASS_GIT_VERSION_STR}" )
+ELSE()
+    MESSAGE( STATUS "Setting default version")
+ENDIF()
+    
+SET( WASS_BUILD_ENV_STR "${CMAKE_SYSTEM} - ${CMAKE_CXX_COMPILER_ID}")
+
+configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/wassglobal.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/include/wassglobal.hpp" )
+
+
+
+##
+
+#find_path( INCFG_DIR NAMES incfg.hpp PATHS "${PROJECT_SOURCE_DIR}/../ext/incfg/" NO_DEFAULT_PATH)
+
+#IF( NOT INCFG_DIR )
+#    MESSAGE( FATAL_ERROR " Incfg library not found, please run git submodule init/update" )
+#ELSE()
+#    SET( INCFG_LIBRARY "${INCFG_DIR}/incfg.cpp" CACHE FILEPATH "incfg library source" FORCE )
+#    MESSAGE( STATUS "Incfg library found!")
+#ENDIF()
+
+
+# Add subprojects
+#
+OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
+
+
+
+IF( BUILD_WASS_PREPARE )
+    ADD_SUBDIRECTORY( wass_prepare )
+ENDIF()
+

@@ -1,0 +1,22 @@
+#ifndef _WASS_GLOBAL_H_
+#define _WASS_GLOBAL_H_
+
+#define WASS_VERSION   ("@WASS_VERSION_STR@")
+#define WASS_BUILD_ENV ("@WASS_BUILD_ENV_STR@")
+
+
+#include <string>
+#include <iostream>
+
+namespace WASS
+{
+    inline void exe_name_to_stdout( std::string name )
+    {
+        std::cout << name << "  v. " << WASS_VERSION << std::endl;
+        std::cout << "---------------------------------------"  << std::endl;
+        std::cout << " "  << WASS_BUILD_ENV << std::endl << std::endl;
+    }
+
+}
+
+#endif
