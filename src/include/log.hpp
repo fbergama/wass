@@ -1,3 +1,23 @@
+/*************************************************************************
+
+WASS - Wave Acquisition Stereo System
+Copyright (C) 2016  Filippo Bergamasco
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
 #ifndef _WASS_LOG_HPP_
 #define _WASS_LOG_HPP_
 
@@ -38,6 +58,8 @@ namespace WASS
         sink->locked_backend()->add_stream( boost::shared_ptr< std::ostream >(&std::cout, boost::null_deleter()) );
 
         sink->set_formatter( boost::log::expressions::stream << "(" << scope << ") " << boost::log::trivial::severity << ": " << boost::log::expressions::smessage );
+
+        sink->locked_backend()->auto_flush(true);
 
         boost::log::core::get()->add_sink(sink);
     }

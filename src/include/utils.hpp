@@ -1,3 +1,24 @@
+/*************************************************************************
+
+WASS - Wave Acquisition Stereo System
+Copyright (C) 2016  Filippo Bergamasco
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
+
 #ifndef _WASS_UTILS_HPP_
 #define _WASS_UTILS_HPP_
 
@@ -43,6 +64,33 @@ namespace WASS
         return cv::Mat();
 
     }
+
+
+    template <typename MatrixType>
+    bool save_matrix_txt( std::string filename, const cv::Mat& m )
+    {
+        std::ofstream ofs( filename.c_str() );
+        if( ofs.fail() )
+            return false;
+
+        ofs.precision(16);
+        ofs << std::scientific;
+
+        for( int i=0; i<m.rows; ++i )
+        {
+            for( int j=0; j<m.cols; ++j )
+            {
+                ofs << m.at<MatrixType>(i,j);
+                if( j!=m.cols-1 )
+                    ofs << " ";
+            }
+            if( i!=m.rows-1)
+                ofs << std::endl;
+        }
+
+        return true;
+    }
+
 
 }
 

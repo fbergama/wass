@@ -84,19 +84,20 @@ configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/wassglobal.hpp.in" "${CMAKE
 
 ##
 
-#find_path( INCFG_DIR NAMES incfg.hpp PATHS "${PROJECT_SOURCE_DIR}/../ext/incfg/" NO_DEFAULT_PATH)
+find_path( INCFG_DIR NAMES incfg.hpp PATHS "${PROJECT_SOURCE_DIR}/../ext/incfg/" NO_DEFAULT_PATH)
 
-#IF( NOT INCFG_DIR )
-#    MESSAGE( FATAL_ERROR " Incfg library not found, please run git submodule init/update" )
-#ELSE()
-#    SET( INCFG_LIBRARY "${INCFG_DIR}/incfg.cpp" CACHE FILEPATH "incfg library source" FORCE )
-#    MESSAGE( STATUS "Incfg library found!")
-#ENDIF()
+IF( NOT INCFG_DIR )
+    MESSAGE( FATAL_ERROR " Incfg library not found, please run git submodule init/update" )
+ELSE()
+    SET( INCFG_LIBRARY "${INCFG_DIR}/incfg.cpp" CACHE FILEPATH "incfg library source" FORCE )
+    MESSAGE( STATUS "Incfg library found!")
+ENDIF()
 
 
 # Add subprojects
 #
 OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
+OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
 
 
 
@@ -104,3 +105,6 @@ IF( BUILD_WASS_PREPARE )
     ADD_SUBDIRECTORY( wass_prepare )
 ENDIF()
 
+IF( BUILD_WASS_STEREO )
+    ADD_SUBDIRECTORY( wass_stereo )
+ENDIF()
