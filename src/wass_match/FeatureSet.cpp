@@ -4,6 +4,27 @@
 #include "log.hpp"
 #include "incfg.hpp"
 #include <fstream>
+/*************************************************************************
+
+WASS - Wave Acquisition Stereo System
+Copyright (C) 2016  Filippo Bergamasco
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+*************************************************************************/
+
+
 #include <boost/cstdint.hpp>
 #include <boost/scoped_array.hpp>
 
@@ -17,7 +38,7 @@ using WASS::match::SURF_Extractor_params;
 
 INCFG_REQUIRE( double, FEATURE_MIN_DISTANCE, 10.0, "Minimum distance allowed between two features (in px)" )
 INCFG_REQUIRE( double, FEATURE_HESSIAN_THRESHOLD, 0.0001, "OpenSURF Hessian threshold" )
-INCFG_REQUIRE( int, FEATURE_N_OCTAVES, 4, "OpenSURF number of octaved" )
+INCFG_REQUIRE( int, FEATURE_N_OCTAVES, 4, "OpenSURF number of octaves" )
 INCFG_REQUIRE( int, FEATURE_N_LAYERS, 4, "OpenSURF number of layers" )
 INCFG_REQUIRE( int, FEATURE_INIT_SAMPLES, 1, "OpenSURF init samples" )
 
