@@ -33,7 +33,7 @@ IF( NOT Boost_INCLUDE_DIRS )
     set(Boost_USE_STATIC_RUNTIME OFF)
     find_package(Boost 1.58.0 REQUIRED COMPONENTS program_options system date_time filesystem log )
     IF( NOT Boost_FOUND )
-        MESSAGE( ERROR, " Boost was not found. Please set BOOST_ROOT path variable")
+        MESSAGE( FATAL_ERROR " Boost was not found. Please set BOOST_ROOT path variable")
     ENDIF()
 ENDIF()
 
