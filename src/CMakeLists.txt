@@ -97,12 +97,19 @@ ENDIF()
 # Add subprojects
 #
 OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
+OPTION( BUILD_WASS_MATCH   "Build wass_match executable" ON )
 OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
 
 
+add_subdirectory( wass_lib )
 
 IF( BUILD_WASS_PREPARE )
     ADD_SUBDIRECTORY( wass_prepare )
+ENDIF()
+
+IF( BUILD_WASS_PREPARE )
+    ADD_SUBDIRECTORY( OpenSURF )
+    ADD_SUBDIRECTORY( wass_match )
 ENDIF()
 
 IF( BUILD_WASS_STEREO )
