@@ -98,6 +98,7 @@ ENDIF()
 #
 OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
 OPTION( BUILD_WASS_MATCH   "Build wass_match executable" ON )
+OPTION( BUILD_WASS_AUTOCALIBRATE  "Build wass_autocalibrate executable" ON )
 OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
 
 
@@ -107,9 +108,13 @@ IF( BUILD_WASS_PREPARE )
     ADD_SUBDIRECTORY( wass_prepare )
 ENDIF()
 
-IF( BUILD_WASS_PREPARE )
+IF( BUILD_WASS_MATCH )
     ADD_SUBDIRECTORY( OpenSURF )
     ADD_SUBDIRECTORY( wass_match )
+ENDIF()
+
+IF( BUILD_WASS_AUTOCALIBRATE )
+    ADD_SUBDIRECTORY( wass_autocalibrate )
 ENDIF()
 
 IF( BUILD_WASS_STEREO )

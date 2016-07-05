@@ -23,7 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <opencv2/opencv.hpp>
 
 
-inline cv::Vec3d triangulate( cv::Vec2d p, cv::Vec2d q, cv::Mat R, cv::Mat T)
+inline cv::Vec3d triangulate( cv::Vec2d p, cv::Vec2d q, const cv::Mat R, const cv::Mat T)
 {
     double Af[4*3];
     double Bf[4*1];

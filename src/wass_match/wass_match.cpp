@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include <fstream>
 
 #include "wassglobal.hpp"
 #include "FeatureSet.h"
@@ -30,7 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "log.hpp"
 #include "utils.hpp"
 #include "incfg.hpp"
-
+#include "epipolar.h"
 
 static boost::filesystem::path workdir;
 
@@ -42,6 +43,27 @@ INCFG_REQUIRE( int, MATCHER_MIN_GROUP_SIZE, 5, "Matcher minimum required group s
 INCFG_REQUIRE( int, MATCHER_MAX_ROUNDS, 20, "Matcher maximum number of rounds to perform" )
 INCFG_REQUIRE( double, MATCHER_MAX_EPI_DISTANCE, 0.5, "Max matches epipolar distance" )
 
+
+bool save_matches( boost::filesystem::path filename, const WASS::match::MatchList& matches )
+{
+    std::ofstream ofs( filename.string().c_str() );
+    if( ofs.fail() )
+    {
+        LOGE << "Unable to write " << filename.string();
+        return false;
+    }
+    ofs << matches.size() << std::endl;
+    ofs << std::setprecision(15);
+
+    for( WASS::match::MatchList::const_iterator it = matches.begin() ; it != matches.end(); ++it )
+    {
+        ofs << it->imga_loc[0] << " " << it->imga_loc[1] << " " << it->imgb_loc[0] << " " << it->imgb_loc[1] << std::endl;
+    }
+
+    ofs.flush();
+
+    return true;
+}
 
 
 cv::Mat render_matches( cv::Mat img1, cv::Mat img2, const WASS::match::MatchList& matches )
@@ -117,9 +139,32 @@ int main( int argc, char* argv[] )
         std::cerr << workdir << " does not exists, aborting." << std::endl;
         return -1;
     }
+
     WASS::setup_logger();
     LOG_SCOPE("wass_match");
 
+    {
+        // Config file load
+        LOGI << "Loding configuration file " << argv[1];
+
+        std::ifstream ifs( argv[1] );
+        if( !ifs.is_open() )
+        {
+            LOGE << "Unable to load " << argv[1];
+            return -1;
+        }
+
+
+        try
+        {
+            incfg::ConfigOptions::instance().load( ifs );
+
+        } catch( std::runtime_error& er )
+        {
+            LOGE << er.what();
+            return -1;
+        }
+    }
 
     try
     {
@@ -223,12 +268,17 @@ int main( int argc, char* argv[] )
         LOGI << "relative translation: " << std::endl << T;
 
         // Render inliers
+        std::vector< cv::Vec2d > pts0_px;
+        std::vector< cv::Vec2d > pts1_px;
+
         WASS::match::MatchList all_matches_filtered;
         for( size_t i=0; i<all_matches.size(); ++i )
         {
             if( mask.at<bool>(i) )
             {
                 all_matches_filtered.push_back( all_matches[i] );
+                pts0_px.push_back( (all_matches[i]).imga_loc );
+                pts1_px.push_back( (all_matches[i]).imgb_loc );
             }
         }
 
@@ -236,12 +286,27 @@ int main( int argc, char* argv[] )
         debug_matches = render_matches( img0, img1, all_matches_filtered );
         cv::imwrite( (workdir/"matches_epifilter.png").string(), debug_matches );
 
+
+        cv::Matx33d Ex((double*)(E.clone().ptr()));
+        cv::Matx33d F = K1i.t() * Ex * K0i;
+        WASS::epi::ErrorStats er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
+        LOGI << "Epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
+
+
         cv::FileStorage fs( (workdir/"ext_R.xml").string(), cv::FileStorage::WRITE );
         fs << "ext_R" << R;
         fs.release();
         fs.open( (workdir/"ext_T.xml").string(), cv::FileStorage::WRITE );
         fs << "ext_T" << T;
         fs.release();
+
+
+        LOGI << "Saving matches";
+
+        if( !save_matches(workdir/"matches.txt", all_matches_filtered ) )
+            return -1;
+
+        LOGI << "All done!";
 
     } catch( WASS::match::FeatureSet::FeatureExtractorException& ex )
     {
