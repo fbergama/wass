@@ -1,0 +1,19 @@
+.activejob {
+    width: 20%;
+    float: left;
+    margin: 5px;
+    border: 2px solid #CCCCCC;
+    border-radius: 5px;
+    padding-bottom: 0px;
+}
+
+.taskname {
+    font-size: 1em;
+    margin-bottom: 10px;
+}
+
+.footertext {
+    font-size: 0.7em;
+    text-align: center;
+}
+

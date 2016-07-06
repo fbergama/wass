@@ -177,6 +177,8 @@ int main( int argc, char* argv[] )
             return -1;
         }
 
+        std::cout << "[P|10|100]" << std::endl;
+
         WASS::match::FeatureSet f0;
         f0.detect( img0, INCFG_GET(NUM_FEATURES_PER_IMAGE), WASS::match::SURF_Extractor_params::get_default() );
         cv::Mat img0_f = img0.clone();
@@ -191,6 +193,8 @@ int main( int argc, char* argv[] )
             LOGE << "Unable to open undistorted/00000001.png";
             return -1;
         }
+
+        std::cout << "[P|20|100]" << std::endl;
 
         WASS::match::FeatureSet f1;
         f1.detect( img1, INCFG_GET(NUM_FEATURES_PER_IMAGE), WASS::match::SURF_Extractor_params::get_default() );
@@ -217,6 +221,8 @@ int main( int argc, char* argv[] )
 
             if( curr_group.size() < INCFG_GET(MATCHER_MIN_GROUP_SIZE) )
                 continue_matching = false;
+
+            std::cout << "[P|" << static_cast<int>(static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)-max_rounds)/static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)) * 70.0f + 20.0f) << "|100]" << std::endl;
 
         } while( max_rounds-- && continue_matching );
 
@@ -307,6 +313,7 @@ int main( int argc, char* argv[] )
             return -1;
 
         LOGI << "All done!";
+        std::cout << "[P|100|100]" << std::endl;
 
     } catch( WASS::match::FeatureSet::FeatureExtractorException& ex )
     {

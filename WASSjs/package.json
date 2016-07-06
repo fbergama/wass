@@ -1,0 +1,13 @@
+{
+  "name": "Wassjs",
+  "version": "0.0.1",
+  "description": "WASS web-based monitor",
+  "author": "Filippo Bergamasco",
+  "license": "GPL3",
+  "private": "true",
+  "dependencies": {
+    "kue": ">=0.11.1",
+    "q": ">=1.4.1",
+    "sprintf-js": ">=1.0.3"
+  }
+}

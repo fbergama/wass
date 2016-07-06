@@ -1,4 +1,6 @@
 build*
 src/CMakeLists.txt.user
 dist/*
+WASSjs/node_modules
+
 

@@ -57,33 +57,12 @@ int main( int argc, char* argv[] )
     if( argc == 1 )
     {
         std::cout << "Usage:" << std::endl;
-        std::cout << "wass_autocalibrate [--genconfig] <config_file> <workdirs_file>" << std::endl << std::endl;
+        std::cout << "wass_autocalibrate <workdirs_file>" << std::endl << std::endl;
         std::cout << "Not enough arguments, aborting." << std::endl;
         return -1;
     }
 
-    if( argc>1 && std::string("--genconfig").compare(  std::string(argv[1]) ) == 0 )
-    {
-        WASS::setup_logger();
-        LOG_SCOPE("wass_autocalibrate");
-        LOGI << "Generating autocalibrate_config.txt ...";
-
-        std::string cfg = incfg::ConfigOptions::instance().to_config_string();
-
-        std::ofstream ofs( "autocalibrate_config.txt" );
-        if( !ofs.is_open() )
-        {
-            LOGE << "Unable to open autocalibrate_config.txt for write";
-            return -1;
-        }
-        ofs << cfg;
-        ofs.close();
-
-        LOGI << "Done!";
-        return 0;
-    }
-
-    if( argc != 3 )
+    if( argc != 2 )
     {
         std::cerr << "Invalid arguments" << std::endl;
         return -1;
@@ -93,32 +72,8 @@ int main( int argc, char* argv[] )
     LOG_SCOPE("wass_autocalibrate");
 
     {
-        // Config file load
-        LOGI << "Loding configuration file " << argv[1];
-
-        std::ifstream ifs( argv[1] );
-        if( !ifs.is_open() )
-        {
-            LOGE << "Unable to load " << argv[1];
-            return -1;
-        }
-
-
-        try
-        {
-            incfg::ConfigOptions::instance().load( ifs );
-
-        } catch( std::runtime_error& er )
-        {
-            LOGE << er.what();
-            return -1;
-        }
-    }
-
-
-    {
         LOGI << "Loading workspaces...";
-        std::ifstream ifs( argv[2] );
+        std::ifstream ifs( argv[1] );
         if( !ifs.is_open() )
         {
             LOGE << "Unable to load " << argv[2];
@@ -140,6 +95,8 @@ int main( int argc, char* argv[] )
     try
     {
         LOGI << "Loading matches";
+
+        std::cout << "[P|20|100]" << std::endl;
 
         for( std::vector< boost::filesystem::path >::const_iterator it=workspaces.begin(); it != workspaces.end(); ++it )
         {
@@ -184,6 +141,7 @@ int main( int argc, char* argv[] )
             LOGI << n_matches << " matches loaded";
         }
 
+        std::cout << "[P|50|100]" << std::endl;
         LOGI << pts_0.size() << " total matches loaded.";
 
         LOGI << "Estimating global essential matrix";
@@ -233,9 +191,11 @@ int main( int argc, char* argv[] )
         LOGI << "Structure reprojection error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
 
         er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
+        double ransac_avgerr = er.avg;
         LOGI << "Epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
 
 
+        std::cout << "[P|70|100]" << std::endl;
 
         // Create SBA structures
 
@@ -269,17 +229,6 @@ int main( int argc, char* argv[] )
         T = sbaR[1]*T1i + sbaT[1];
         T = T/cv::norm(T);
 
-        // Save update extrinsics to each workspace
-
-        for( std::vector< boost::filesystem::path >::const_iterator it=workspaces.begin(); it != workspaces.end(); ++it )
-        {
-            cv::FileStorage fs( ((*it)/"ext_R.xml").string(), cv::FileStorage::WRITE );
-            fs << "ext_R" << R;
-            fs.release();
-            fs.open( ((*it)/"ext_T.xml").string(), cv::FileStorage::WRITE );
-            fs << "ext_T" << T;
-            fs.release();
-        }
 
         // Recompute epipolar error
         cv::Mat Tx = cv::Mat::zeros(3,3,CV_64FC1);
@@ -296,7 +245,27 @@ int main( int argc, char* argv[] )
 
         er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
         LOGI << "SBA-optimized epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
+
+        if( er.avg < ransac_avgerr )
+        {
+            // Save update extrinsics to each workspace
+            for( std::vector< boost::filesystem::path >::const_iterator it=workspaces.begin(); it != workspaces.end(); ++it )
+            {
+                cv::FileStorage fs( ((*it)/"ext_R.xml").string(), cv::FileStorage::WRITE );
+                fs << "ext_R" << R;
+                fs.release();
+                fs.open( ((*it)/"ext_T.xml").string(), cv::FileStorage::WRITE );
+                fs << "ext_T" << T;
+                fs.release();
+            }
+        } else
+        {
+            LOGE << "SBA failed. reverting to ransac calibration";
+        }
+
         LOGI << "All done!";
+
+        std::cout << "[P|100|100]" << std::endl;
 
     } catch( std::runtime_error& ex )
     {

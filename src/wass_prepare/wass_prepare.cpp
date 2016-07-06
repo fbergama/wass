@@ -96,17 +96,14 @@ int main( int argc, char* argv[] )
     }
 
     LOGI << "Creating " << wdir;
-    if( !boost::filesystem::create_directories( wdir ) )
-    {
-        LOGE << "Unable to create.";
-        return -1;
-    }
+    boost::filesystem::create_directories( wdir );
 
     cv::Mat intr0;
     cv::Mat dist0;
     cv::Mat intr1;
     cv::Mat dist1;
 
+    std::cout << "[P|10|100]" << std::endl;
     LOGI << "Loading calibration data";
 
     if( (intr0 = WASS::load_matrix( calibdir/"intrinsics_00.xml") ).rows == 0 )
@@ -128,6 +125,7 @@ int main( int argc, char* argv[] )
     }
 
 
+    std::cout << "[P|20|100]" << std::endl;
     LOGI << "Undistorting images";
 
     boost::filesystem::path undist_dir( wdir/"undistorted" );
@@ -142,11 +140,14 @@ int main( int argc, char* argv[] )
     cv::undistort( img, img_undist, intr0, dist0 );
     cv::imwrite( (undist_dir/"00000000.png").string(), img_undist );
 
+    std::cout << "[P|50|100]" << std::endl;
+
     img = cv::imread( vm["c1"].as<std::string>(), cv::IMREAD_GRAYSCALE );
     img_undist;
     cv::undistort( img, img_undist, intr1, dist1 );
     cv::imwrite( (undist_dir/"00000001.png").string(), img_undist );
 
+    std::cout << "[P|70|100]" << std::endl;
 
     cv::Mat extR = WASS::load_matrix( calibdir/"ext_R.xml" );
     cv::Mat extT = WASS::load_matrix( calibdir/"ext_T.xml" );
@@ -171,6 +172,7 @@ int main( int argc, char* argv[] )
 
 
     LOGI << "All done, exiting";
+    std::cout << "[P|100|100]" << std::endl;
 
     return 0;
 }

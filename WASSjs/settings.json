@@ -1,0 +1,12 @@
+{
+    "pipeline_dir": "../dist/bin/",
+    "prepare_exe": "wass_prepare",
+    "matcher_exe": "wass_match",
+    "autocalibrate_exe": "wass_autocalibrate",
+    "stereo_exe": "wass_stereo",
+    "http_port": 3000,
+    "num_frames_to_match": 50,
+    "prepare_parallel_jobs": 4,
+    "match_parallel_jobs": 4,
+    "stereo_parallel_jobs": 4
+}
