@@ -9,7 +9,8 @@ set(CMAKE_CXX_STANDARD 11)
 # Setup default installation dir
 #
 IF(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-SET( CMAKE_INSTALL_PREFIX "${PROJECT_SOURCE_DIR}/../dist" CACHE PATH "Install prefix" FORCE )
+get_filename_component( INSTALL_DIR_ABS "${PROJECT_SOURCE_DIR}/../dist" ABSOLUTE)
+SET( CMAKE_INSTALL_PREFIX ${INSTALL_DIR_ABS} CACHE PATH "Install prefix" FORCE )
 ENDIF()
 
 # Set default CMake build type
@@ -120,3 +121,22 @@ ENDIF()
 IF( BUILD_WASS_STEREO )
     ADD_SUBDIRECTORY( wass_stereo )
 ENDIF()
+
+
+
+####################################
+# Build overview
+
+
+MESSAGE( STATUS "------------------------------------------------- ")
+MESSAGE( STATUS " Build overview: ")
+MESSAGE( STATUS "------------------------------------------------- ")
+MESSAGE( STATUS "BUILD_WASS_PREPARE:         ${BUILD_WASS_PREPARE} ")
+MESSAGE( STATUS "BUILD_WASS_MATCH:           ${BUILD_WASS_PREPARE} ")
+MESSAGE( STATUS "BUILD_WASS_AUTOCALIBRATE:   ${BUILD_WASS_AUTOCALIBRATE} ")
+MESSAGE( STATUS "BUILD_WASS_STEREO:          ${BUILD_WASS_STEREO} ")
+MESSAGE( STATUS "CMAKE_BUILD_TYPE:           ${CMAKE_BUILD_TYPE} ")
+MESSAGE( STATUS "CMAKE_INSTALL_PREFIX:       ${CMAKE_INSTALL_PREFIX} ")
+MESSAGE( STATUS "OpenCV_VERSION:             ${OpenCV_VERSION} ")
+MESSAGE( STATUS "Boost_VERSION:              ${Boost_VERSION} ")
+MESSAGE( STATUS "------------------------------------------------- ")
