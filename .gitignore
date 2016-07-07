@@ -1,6 +1,7 @@
 build*
 src/CMakeLists.txt.user
 dist/*
+ext/sba*
 WASSjs/node_modules
 
 
