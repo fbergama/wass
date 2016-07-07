@@ -54,7 +54,7 @@ INCFG_REQUIRE( double, PLANE_REFINE_XMAX,  9999, "Maximum point x-coordinate for
 INCFG_REQUIRE( double, PLANE_REFINE_YMIN, -9999, "Minimum point y-coordinate for plane refinement" )
 INCFG_REQUIRE( double, PLANE_REFINE_YMAX,  9999, "Maximum point y-coordinate for plane refinement" )
 
-INCFG_REQUIRE( int, PLANE_MAX_DISTANCE, 1.5, "Maximum point-plane distance allowed for the reconstructed point-cloud" )
+INCFG_REQUIRE( double, PLANE_MAX_DISTANCE, 1.5, "Maximum point-plane distance allowed for the reconstructed point-cloud" )
 
 
 INCFG_REQUIRE( bool, SAVE_AS_PLY, false, "Save final reconstructed point cloud also in PLY format" )

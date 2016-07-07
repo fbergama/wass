@@ -367,7 +367,7 @@ bool PovMesh::save_as_xyz_binary( std::string filename ) const
     }
 
     ofs.write( (char*)ptdata, sizeof(float)*datasize*3 );
-    delete ptdata;
+    delete[] ptdata;
 
     ofs.flush();
     ofs.close();
@@ -451,7 +451,7 @@ bool PovMesh::save_as_xyz_compressed( std::string filename ) const
     }
 
     ofs.write( (char*)ptdata, sizeof(boost::uint16_t)*datasize*3 );
-    delete ptdata;
+    delete[] ptdata;
 
     ofs.flush();
     LOGI << "total data size: " << (static_cast<double>(ofs.tellp())/(1E6)) << " Mb";

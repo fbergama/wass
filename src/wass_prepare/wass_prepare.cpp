@@ -143,7 +143,6 @@ int main( int argc, char* argv[] )
     std::cout << "[P|50|100]" << std::endl;
 
     img = cv::imread( vm["c1"].as<std::string>(), cv::IMREAD_GRAYSCALE );
-    img_undist;
     cv::undistort( img, img_undist, intr1, dist1 );
     cv::imwrite( (undist_dir/"00000001.png").string(), img_undist );
 
