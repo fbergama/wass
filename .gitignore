@@ -3,5 +3,6 @@ src/CMakeLists.txt.user
 dist/*
 ext/sba*
 WASSjs/node_modules
-
+test/output/*
+test/WASS_TEST
 
