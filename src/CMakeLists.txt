@@ -60,8 +60,8 @@ IF( NOT Boost_INCLUDE_DIRS )
     set(Boost_USE_STATIC_LIBS OFF)
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
-	set(Boost_DEBUG ON)
-	set(Boost_DETAILED_FAILURE_MSG ON)
+	#set(Boost_DEBUG ON)
+	#set(Boost_DETAILED_FAILURE_MSG ON)
     find_package(Boost 1.58.0 REQUIRED COMPONENTS program_options system date_time filesystem log )
     IF( NOT Boost_FOUND )
         MESSAGE( FATAL_ERROR " Boost was not found. Please set BOOST_ROOT path variable")
@@ -125,10 +125,15 @@ IF( BUILD_WASS_STEREO )
 ENDIF()
 
 
+####################################
+
+IF( WIN32 )
+ADD_SUBDIRECTORY( package_win32 )
+ENDIF()
+
 
 ####################################
 # Build overview
-
 
 MESSAGE( STATUS "------------------------------------------------- ")
 MESSAGE( STATUS " Build overview: ")
