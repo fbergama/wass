@@ -1,13 +1,13 @@
 {
-    "cam0_datadir":"/home/fibe/DATA/data_synth05/input/cam1/",
-    "cam1_datadir":"/home/fibe/DATA/data_synth05/input/cam2/",
-    "workdir":"/home/fibe/DATA/data_synth05/output/",
-    "confdir":"/home/fibe/DATA/data_synth05/config/",
+    "cam0_datadir":"",
+    "cam1_datadir":"/",
+    "workdir":"",
+    "confdir":"",
     "savediskspace":true,
     "keepimages":false,
     "match_config_file":"matcher_config.txt",
     "dense_stereo_config_file":"stereo_config.txt",
     "wdir_frames":[],
     "seq_start":0,
-    "seq_end":10
+    "seq_end":1
 }
