@@ -656,17 +656,15 @@ void sba_driver( const std::vector< cv::Matx44d >& cam_poses,
     const int pnp = 3; // xyz points
     const int mnp = 2; // uv reprojections
 
-    double *covimgpts;
-    double K[9], ical[5]; // intrinsic calibration matrix & temp. storage for its params
-    char tbuf[32];
-    double opts[SBA_OPTSSZ], info[SBA_INFOSZ], phi;
-    int howto, expert, analyticjac, fixedcal, havedist, n, prnt, verbose=0;
+    double ical[5]; // intrinsic calibration matrix & temp. storage for its params
+    double opts[SBA_OPTSSZ], info[SBA_INFOSZ];
+    int fixedcal, havedist, n, verbose=0;
     int nframes, numpts3D, numprojs, nvars;
     const int nconstframes=0;
     int i;
 
-    nframes = cam_poses.size();
-    numpts3D = pts3d.size();
+    nframes = static_cast<int>( cam_poses.size() );
+    numpts3D = static_cast<int>( pts3d.size() );
     numprojs = numpts3D*nframes;
 
     // Sanity check

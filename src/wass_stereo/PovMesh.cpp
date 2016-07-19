@@ -984,9 +984,9 @@ void PovMesh::laplacian_smooth( size_t steps )
     for( size_t step=0; step<steps; ++step)
     {
         LOGI << "step " << (step+1);
-        for( size_t v=1; v<pImpl->height-1; ++v )
+        for( int v=1; v<pImpl->height-1; ++v )
         {
-            for( size_t u=1; u<pImpl->width-1; ++u )
+            for( int u=1; u<pImpl->width-1; ++u )
             {
                 const PovMesh::Point& pog = pImpl->PTc(u,v);
                 if( !pog.valid )
@@ -994,9 +994,9 @@ void PovMesh::laplacian_smooth( size_t steps )
 
                 size_t N=0;
                 double vs=0;
-                for( size_t vv=v-1; vv <= v+1; ++vv )
+                for( int vv=v-1; vv <= v+1; ++vv )
                 {
-                    for( size_t uu=u-1; uu <= u+1; ++uu )
+                    for( int uu=u-1; uu <= u+1; ++uu )
                     {
                         const PovMesh::Point& p = pImpl->PTc(uu,vv);
                         if( p.valid )

@@ -281,7 +281,7 @@ int main( int argc, char* argv[] )
         WASS::match::MatchList all_matches_filtered;
         for( size_t i=0; i<all_matches.size(); ++i )
         {
-            if( mask.at<bool>(i) )
+            if( mask.at<bool>( static_cast<int>(i) ) )
             {
                 all_matches_filtered.push_back( all_matches[i] );
                 pts0_px.push_back( (all_matches[i]).imga_loc );

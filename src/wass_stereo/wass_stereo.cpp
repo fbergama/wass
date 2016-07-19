@@ -47,7 +47,7 @@ INCFG_REQUIRE( bool, DISABLE_AUTO_LEFT_RIGHT, false, "Disable automatic left-rig
 INCFG_REQUIRE( bool, SWAP_LEFT_RIGHT, false, "Swaps left-right images (only valid if DISABLE_AUTO_LEFT_RIGHT is set)" )
 INCFG_REQUIRE( bool, SAVE_FULL_MESH, false, "Save 3D point cloud before plane outlier removal" )
 INCFG_REQUIRE( int, PLANE_RANSAC_ROUNDS, 200, "number of RANSAC rounds for plane estimation" )
-INCFG_REQUIRE( int, PLANE_RANSAC_THRESHOLD, 1.0, "RANSAC inlier threshold" )
+INCFG_REQUIRE( double, PLANE_RANSAC_THRESHOLD, 1.0, "RANSAC inlier threshold" )
 
 INCFG_REQUIRE( double, PLANE_REFINE_XMIN, -9999, "Minimum point x-coordinate for plane refinement" )
 INCFG_REQUIRE( double, PLANE_REFINE_XMAX,  9999, "Maximum point x-coordinate for plane refinement" )

@@ -101,7 +101,7 @@ inline void render_disparity16( std::string filename, const int numberOfDisparit
 inline void render_disparity_float( const std::string filename, const cv::Mat& disp )
 {
     cv::Mat disprender = cv::Mat::zeros( disp.rows, disp.cols, CV_8UC1 );
-    float mindisp = disp.cols+1;
+    float mindisp = static_cast<float>( disp.cols+1 );
     float maxdisp = 0.0f;
 
     for( size_t i=0; i<disp.rows; ++i )
