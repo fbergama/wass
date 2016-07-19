@@ -168,6 +168,7 @@ int main( int argc, char* argv[] )
 
     try
     {
+        LOGI << "Matching " << workdir;
 
         // Features extraction
         cv::Mat img0 = cv::imread( (workdir/"undistorted"/"00000000.png").string(), cv::IMREAD_GRAYSCALE );
@@ -298,6 +299,14 @@ int main( int argc, char* argv[] )
         WASS::epi::ErrorStats er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
         LOGI << "Epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
 
+        {
+            // Save error stats
+            std::ofstream ofs( (workdir/"matcher_stats.csv").c_str() );
+            ofs << std::setprecision(15);
+            ofs << "N.Matches;Avg. Error;Std. Error;Min. Error;Max. Error" << std::endl;
+            ofs << all_matches_filtered.size() << ";" << er.avg << ";" << er.std << ";" << er.min << ";" << er.max << std::endl;
+            ofs.close();
+        }
 
         cv::FileStorage fs( (workdir/"ext_R.xml").string(), cv::FileStorage::WRITE );
         fs << "ext_R" << R;
