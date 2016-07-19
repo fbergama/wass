@@ -18,7 +18,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
 
-
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include "GTMatcher.h"
 #include "hires_timer.h"
 #include "log.hpp"

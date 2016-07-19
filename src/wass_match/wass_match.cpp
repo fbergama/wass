@@ -170,7 +170,7 @@ int main( int argc, char* argv[] )
     {
 
         // Features extraction
-        cv::Mat img0 = cv::imread( (workdir/"undistorted"/"00000000.png").c_str(), cv::IMREAD_GRAYSCALE );
+        cv::Mat img0 = cv::imread( (workdir/"undistorted"/"00000000.png").string(), cv::IMREAD_GRAYSCALE );
         if( img0.rows==0 || img0.cols==0 )
         {
             LOGE << "Unable to open undistorted/00000000.png";
@@ -187,7 +187,7 @@ int main( int argc, char* argv[] )
         img0_f = cv::Mat();
 
 
-        cv::Mat img1 = cv::imread( (workdir/"undistorted"/"00000001.png").c_str(), cv::IMREAD_GRAYSCALE );
+        cv::Mat img1 = cv::imread( (workdir/"undistorted"/"00000001.png").string(), cv::IMREAD_GRAYSCALE );
         if( img1.rows==0 || img1.cols==0 )
         {
             LOGE << "Unable to open undistorted/00000001.png";

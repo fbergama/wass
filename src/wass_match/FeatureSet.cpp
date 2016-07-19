@@ -1,9 +1,3 @@
-#include "FeatureSet.h"
-#include "hires_timer.h"
-#include "surflib.h"
-#include "log.hpp"
-#include "incfg.hpp"
-#include <fstream>
 /*************************************************************************
 
 WASS - Wave Acquisition Stereo System
@@ -24,7 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
 
-
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include "FeatureSet.h"
+#include "hires_timer.h"
+#include "surflib.h"
+#include "log.hpp"
+#include "incfg.hpp"
+#include <fstream>
 #include <boost/cstdint.hpp>
 #include <boost/scoped_array.hpp>
 
