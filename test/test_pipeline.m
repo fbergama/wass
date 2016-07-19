@@ -1,5 +1,6 @@
 %%
 clc;clear;close all;
+addpath([pwd(),'/../matlab/']);
 
 EXE_DIR      = [pwd(),'/../dist/bin/'];
 PREPARE_EXE  = [EXE_DIR,'wass_prepare'];
@@ -136,5 +137,15 @@ end
 fprintf('***************************************************\n');
 fprintf(' Done in %f secs.\n', toc );
 
-%status = verify_matcher( input_frames, CONFIG_DIR );
-%assert( strcmp(status, 'ok' ), ['wass_stereo failed: ',status]);
+
+%%
+% Check 3D data
+
+fprintf('***************************************************\n');
+fprintf('**  Verifying 3D point clouds                 *****\n');
+fprintf('***************************************************\n');
+verify_meshes( input_frames, CONFIG_DIR, M3D_DIR);
+fprintf('***************************************************\n');
+fprintf(' ALL TESTS OK!\n');
+
+

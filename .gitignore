@@ -5,4 +5,5 @@ ext/sba*
 WASSjs/node_modules
 test/output/*
 test/WASS_TEST
+test/WASS_TEST.zip
 
