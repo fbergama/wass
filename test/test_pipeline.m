@@ -3,10 +3,17 @@ clc;clear;close all;
 addpath([pwd(),'/../matlab/']);
 
 EXE_DIR      = [pwd(),'/../dist/bin/'];
-PREPARE_EXE  = [EXE_DIR,'wass_prepare'];
-MATCH_EXE    = [EXE_DIR,'wass_match'];
-AUTOCAL_EXE  = [EXE_DIR,'wass_autocalibrate'];
-STEREO_EXE   = [EXE_DIR,'wass_stereo'];
+if ispc
+    PREPARE_EXE  = [EXE_DIR,'wass_prepare.exe'];
+    MATCH_EXE    = [EXE_DIR,'wass_match.exe'];
+    AUTOCAL_EXE  = [EXE_DIR,'wass_autocalibrate.exe'];
+    STEREO_EXE   = [EXE_DIR,'wass_stereo.exe'];
+else
+    PREPARE_EXE  = [EXE_DIR,'wass_prepare'];
+    MATCH_EXE    = [EXE_DIR,'wass_match'];
+    AUTOCAL_EXE  = [EXE_DIR,'wass_autocalibrate'];
+    STEREO_EXE   = [EXE_DIR,'wass_stereo'];
+end
 
 TEST_ROOT    = [pwd(),'/WASS_TEST'];
 CONFIG_DIR   = [TEST_ROOT,'/synth/config/'];
@@ -115,7 +122,7 @@ tic;
 % create workspaces file
 fid = fopen( [OUT_DIR,'/workspaces.txt'], 'w' );
 for ii=1:numel(input_frames)
-    fprintf(fid, [input_frames{ii}.wd,'\n'] );
+    fwrite(fid, [input_frames{ii}.wd,10] );
 end
 fclose(fid);
 
