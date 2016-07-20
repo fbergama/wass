@@ -26,6 +26,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     module.exports.fix_path = function( name ) {
 
+        var path = require('path');
+        if( !path.isAbsolute(name) )
+            name = path.resolve( name );
+
         if( name[ name.length - 1] !== '/' )
             name = name + "/";
 

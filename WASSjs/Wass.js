@@ -44,7 +44,7 @@ var sprintf = require("sprintf-js").sprintf;
 var WASSjs_VERSION = "0.0.1";
 
 console.log( "Welcome to Wass.js  - " + WASSjs_VERSION );
-console.log( "=============================" );
+console.log( "======================================================" );
 
 // Setup all handlers
 process.on("exit", function() { console.log("Goodbye"); });
@@ -55,6 +55,7 @@ var settings = undefined;
 try {
     settings = require("./settings.json");
     settings.pipeline_dir = utils.fix_path( settings.pipeline_dir );
+    console.log("Pipeline directory: " + settings.pipeline_dir);
 } catch( err ) {
     console.log("settings.json error: ");
     console.log( err );
