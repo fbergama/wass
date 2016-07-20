@@ -27,27 +27,23 @@ var Q = require('q');
 var fs = require('fs');
 var sprintf = require("sprintf-js").sprintf;
 
-//var f1 = function() {
-//    var def = Q.defer();
-//    setTimeout( function() { console.log("f1"); def.reject(new Error("errore")); }, 1000 );
-//    return def.promise;
-//}
-//console.log("aa");
-//f1().then( function() {
-//    console.log("f2");
-//}).fail( function(err){console.log("FAIL: "+err);} ).done(function(){
-//    console.log("All done");
-//});
-//return;
-//
 
-var WASSjs_VERSION = "0.0.1";
+
+
+
+
+var WASSjs_VERSION = "1.0";
 
 console.log( "Welcome to Wass.js  - " + WASSjs_VERSION );
 console.log( "======================================================" );
 
+
+
+
 // Setup all handlers
 process.on("exit", function() { console.log("Goodbye"); });
+
+
 
 
 // Load settings file
@@ -55,13 +51,16 @@ var settings = undefined;
 try {
     settings = require("./settings.json");
     settings.pipeline_dir = utils.fix_path( settings.pipeline_dir );
+    console.log("Settings loaded.");
     console.log("Pipeline directory: " + settings.pipeline_dir);
+
 } catch( err ) {
     console.log("settings.json error: ");
     console.log( err );
     return -1;
 }
-console.log("Settings file loaded, checking if external executables are ok...");
+
+
 
 
 // Load worksession file
@@ -80,6 +79,7 @@ try {
 }
 
 
+
 var extexe_sanity_check = function( settings )
 {
     var check_deferred = Q.defer();
@@ -88,20 +88,26 @@ var extexe_sanity_check = function( settings )
     var task = new RunTask.RunTask( settings.pipeline_dir+settings.prepare_exe, [], settings.pipeline_dir );
     task.start( function() { t1.resolve(); }, function(err) { t1.reject( new Error(err)); }  );
 
-    /*
+    var t2 = Q.defer();
+    var task = new RunTask.RunTask( settings.pipeline_dir+settings.matcher_exe, [], settings.pipeline_dir );
+    task.start( function() { t2.resolve(); }, function(err) { t2.reject( new Error(err)); }  );
+
     var t3 = Q.defer();
-    var task = new RunTask.RunTask( settings.pipeline_dir+settings.surf_exe, [], settings.pipeline_dir );
+    var task = new RunTask.RunTask( settings.pipeline_dir+settings.autocalibrate_exe, [], settings.pipeline_dir );
     task.start( function() { t3.resolve(); }, function(err) { t3.reject( new Error(err)); }  );
-    Q.when(Q.all([t1.promise, t2.promise, t3.promise]), function() {
-        console.log("Everything looks good!");
+
+    var t4 = Q.defer();
+    var task = new RunTask.RunTask( settings.pipeline_dir+settings.stereo_exe, [], settings.pipeline_dir );
+    task.start( function() { t4.resolve(); }, function(err) { t4.reject( new Error(err)); }  );
+
+    Q.when(Q.all([t1.promise, t2.promise, t3.promise, t4.promise ]), function() {
+        console.log("Pipeline executables looks good!");
         check_deferred.resolve();
     }, function(err) {
         console.log(">> " + err );
         check_deferred.reject();
     });
 
-    */
-    check_deferred.resolve();
     return check_deferred.promise;
 }
 
@@ -133,34 +139,52 @@ var prepare_data = function( worksession, mainq ) {
 
     var scandef = Q.defer();
 
-    worksession.currstatus = "Scanning data dir";
+    try {
 
-    var datadir = new dirscan.DirScan(worksession.cam0_datadir, worksession.cam1_datadir, worksession.seq_start, worksession.seq_end, function( cam0, cam1) {
-        console.log("Dir scan completed");
+        try {
+            fs.accessSync( worksession.workdir , fs.F_OK );
+        } catch(e) {
+            fs.mkdirSync( worksession.workdir );
+        }
 
-        worksession.wdir_frames = [];
-        var image_indices = Object.keys( cam0 );
-        if( image_indices.length < 1 )
-            scandef.reject("No frames found.");
+        fs.accessSync( worksession.workdir , fs.F_OK );
 
-        image_indices.forEach( function(idx) {
+    } catch( e ) {
+        scandef.reject( worksession.workdir + " is not an accessible directory.");
+        return scandef.promise;
+    }
 
-            mainq.create( 'prepare', {
-                title:('['+sprintf("%06d_wd",idx)+"] Preparing data" ),
-                index: idx,
-                cam0file: cam0[idx],
-                cam1file: cam1[idx],
-                workspacename: sprintf("%06d_wd/",idx)
-            }).save();
+    worksession.currstatus = "Scanning cam0/cam1 data dir";
 
-        });
-        worksession.currstatus = "prepare";
-        worksession.total_jobs = image_indices.length;
-        scandef.resolve();
+    setTimeout( function() {
+        var datadir = new dirscan.DirScan(worksession.cam0_datadir, worksession.cam1_datadir, worksession.seq_start, worksession.seq_end, function( cam0, cam1) {
 
-    }, function( err ) {
-        scandef.reject(err);
-    } );
+            console.log("Dir scan completed");
+
+            worksession.wdir_frames = [];
+            var image_indices = Object.keys( cam0 );
+            if( image_indices.length < 1 )
+                scandef.reject("No frames found.");
+
+            image_indices.forEach( function(idx) {
+
+                mainq.create( 'prepare', {
+                    title:('['+sprintf("%06d_wd",idx)+"] Preparing data" ),
+                    index: idx,
+                    cam0file: cam0[idx],
+                    cam1file: cam1[idx],
+                    workspacename: sprintf("%06d_wd/",idx)
+                }).save();
+
+            });
+            worksession.currstatus = "prepare";
+            worksession.total_jobs = image_indices.length;
+            scandef.resolve();
+
+        }, function( err ) {
+            scandef.reject(err);
+        } );
+    }, 10 );
 
     return scandef.promise;
 }
@@ -599,6 +623,7 @@ Q.when( extexe_sanity_check(settings), function() {
 
             if(url.pathname === "/doprepare") {
                 if( worksession.currstatus == "idle" ) {
+                    /*
                     prepare_data(worksession,mainq);
                     response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
                     response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
@@ -607,7 +632,7 @@ Q.when( extexe_sanity_check(settings), function() {
                         reason: ""
                     } ) );
                     response.end();
-                    /*
+                    */
                     Q.when( prepare_data(worksession,mainq), function() {
                         response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
                         response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
@@ -617,7 +642,6 @@ Q.when( extexe_sanity_check(settings), function() {
                         } ) );
                         response.end();
                     }, function(err) {
-                        console.log("Sending the error");
                         response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
                         response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
                         response.write( JSON.stringify( {
@@ -626,7 +650,6 @@ Q.when( extexe_sanity_check(settings), function() {
                         } ) );
                         response.end();
                     });
-                   */
                     return;
                 } else {
                     not_idle_state_error();
