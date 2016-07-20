@@ -1100,6 +1100,8 @@ int main( int argc, char* argv[] )
 
     try
     {
+        LOGI << "Reconstructing " << env.workdir;
+
         env.timer.start();
         env.cam_distance = 1.0;
         if( !load_data(env) )
