@@ -384,7 +384,7 @@ Q.when( extexe_sanity_check(settings), function() {
         init_tasks.push( utils.remove_all_failed( jobname ) );
         dstart.resolve();
     });
-
+    dstart.resolve();
 
     Q.when( Q.all( init_tasks ) , function() {
 
@@ -421,7 +421,7 @@ Q.when( extexe_sanity_check(settings), function() {
         /**
          * # Dense reconstruction job
          * 
-         *  Performs StereoMatch on all the workspaces
+         *  Performs wass_sterep on all the workspaces
          */
         mainq.process('dense', settings.stereo_parallel_jobs, function(job,done) {
 
@@ -442,44 +442,34 @@ Q.when( extexe_sanity_check(settings), function() {
                 // Delete source images if necessary
                 if( !worksession.keepimages && workspace_num > worksession.keep_images_end ) {
                     utils.deleteRecursive( workspacepath+"undistorted" );
-                    //utils.deleteRecursive( workspacepath+"matchdata_full.txt" );
                 } 
 
                 // Cleanup some disk space
                 if( worksession.savediskspace ) {
-                    /*
-                    utils.deleteRecursive( workspacepath+"matches.txt" );
-                    utils.deleteRecursive( workspacepath+"matches.png" );
-                    utils.deleteRecursive( workspacepath+"matchdata.txt" );
                     utils.deleteRecursive( workspacepath+"disparity_coverage.jpg" );
                     utils.deleteRecursive( workspacepath+"disparity_final_scaled.png" );
-                    utils.deleteRecursive( workspacepath+"stereo.jpg" );
-
-                    //Meshes
-                    utils.deleteRecursive( workspacepath+"mesh_full.ply" );
-                    utils.deleteRecursive( workspacepath+"mesh.ply" );
-                    utils.deleteRecursive( workspacepath+"plane_refinement_inliers.ply" );
-                    utils.deleteRecursive( workspacepath+"plane_refinement_inliers.xyz" );
-                    //Additional files
                     utils.deleteRecursive( workspacepath+"stereo_input.jpg" );
-                    utils.deleteRecursive( workspacepath+"surflog.txt" );
-                    utils.deleteRecursive( workspacepath+"intrinsics.xml" );
-                    utils.deleteRecursive( workspacepath+"distortion.xml" );
-                   */
+                    utils.deleteRecursive( workspacepath+"stereo.jpg" );
+                    utils.deleteRecursive( workspacepath+"plane_refinement_inliers.xyz" );
+                    utils.deleteRecursive( workspacepath+"mesh.ply" );
+                    utils.deleteRecursive( workspacepath+"mesh_full.ply" );
                 }
 
-                /*
-                var full_workspace_name = job.data.workspacename.slice(0,9);
-                var tartask = new RunTask.RunTask( "tar", 
-                                                  ["cvfz", full_workspace_name+".tar.gz", job.data.workspacename],
-                                                   workspacepath+"../" );
-                tartask.start( function(code) {
-                    utils.deleteRecursive( workspacepath );
-                    return done(); 
-                }, function(err) {
-                    done( new Error("TAR error") );
-                });
-                */
+                if( worksession.zipoutput ) {
+                    var full_workspace_name = job.data.workspacename.slice(0,9);
+                    
+                    var tartask = new RunTask.RunTask( "zip", 
+                        ["-9", "-r", full_workspace_name+".zip", job.data.workspacename],
+                        workspacepath+"../" );
+
+                    tartask.start( function(code) {
+                        utils.deleteRecursive( workspacepath );
+                        return done(); 
+                    }, function(err) {
+                        done( new Error("ZIP error") );
+                    });
+
+                }
 
                return done();
 
