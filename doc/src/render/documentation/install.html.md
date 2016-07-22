@@ -1,5 +1,5 @@
 ---
-title: "Install"
+title: "Installing"
 layout: "default"
 isPage: true
 menuOrder: 1
@@ -68,7 +68,7 @@ to install [CMake](https://cmake.org), [Boost](http://www.boost.org) and
 [OpenCV](http://opencv.org) in ```/usr/local/Cellar```.
 
 The next step is to install [node.js](https://nodejs.org). Download the 
-"Mac OS X Installer (.pkg)" from the [download section](https/nodejs.org/en/download)
+"Mac OS X Installer (.pkg)" from the [download section](http://nodejs.org/en/download)
 and run the package. You can verify that node.js is properly installed by
 entering the command:
 
@@ -80,8 +80,8 @@ $ npm --version
 that should respond with the currently installed version.
 
 At this point, download the latest wass source code from the offical repository
-in a local directory of your choice. For example, to download wass on your home
-directory enter the commands:
+(if you haven't done it yet) in a local directory of your choice. For example,
+to download wass on your home directory enter the commands:
 
 ```
 $ cd ~
@@ -107,7 +107,7 @@ $ cd ../dist/bin
 $ ./wass_prepare
 ```
 
-that should respond with something like:
+that should output something like:
 
 ```
 wass_prepare  v. 1.0_heads/master-0-g5a7e63d
@@ -133,9 +133,31 @@ $ make
 ```
 
 wass and WASSjs should be now installed and configured. You can verify if
-everything is working properly by [testing the pipeline](##)
+everything is working properly by [testing the pipeline](testing.html).
 
 
 # Windows
 
+WASS can be compiled on Windows with the latest Microsoft Visual Studio 2015
+but requires a prior building of OpenCV, Boost C++ Libraries and
+[CLAPACK](http://www.netlib.org/clapack/).
+
+For this reason, ***it's higly recommended to install the Binary Version***
+from the [download section](/download.html) and unzip the downloaded package on
+a directory of your choice. We will refer to that directory as
+```<BOOST_ROOT>``` throughout this documentation.
+
+After that, download the latest ***nodejs*** for Windows from
+[http://nodejs.org/en/download](http://nodejs.org/en/download), choose the
+64bit Windows installer for the "current" (non LTS) version, and proceed with
+its installation.
+
+You can verify that node is installed properly by opening a command prompt 
+and typing:
+
+```
+node --version
+```
+
+WASS should be installed and configured. You can proceed by [testing the pipeline](testing.html).
 

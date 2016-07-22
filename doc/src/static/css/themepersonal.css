@@ -14,7 +14,31 @@ h2 {
     font-size: 4em;
     margin-top: 0.3em;
 }
+
 .subtitle {
    /*font-variant: small-caps;*/
    font-size: 1em;
+}
+
+.navbar-inverse {
+    background-color: #e5e5e5;
+    border-color: #e0e0e0;
+}
+
+.dropdown-menu {
+    background-color: #e5e5e5;
+}
+
+table {
+    margin-top: 2em;
+    margin-bottom: 2em;
+}
+
+table td {
+    padding: 1em;
+}
+
+table th {
+    padding: 0.5em;
+    background-color: #e0e0e0;
 }
