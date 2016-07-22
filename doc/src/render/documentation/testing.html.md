@@ -8,7 +8,7 @@ menuOrder: 2
 # Testing the WASS pipeline
 
 After the WASS installation is highly recommended to test the whole pipeline to verify its correct operation. Tests are performed by some Matlab
-scripts against a set of synthetically generated stereo frames. Please be aware that the processing speed during the tests can be lower than the normal mode of operation described in [Running the pipeline](running.html). 
+scripts against a set of synthetically generated stereo frames. Please be aware that the processing speed during the tests can be lower than the normal mode of operation described in the [Getting Started](getting_started.html) section. 
 
 
 ## Downloading the test data

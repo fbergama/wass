@@ -47,7 +47,7 @@ view of a common filesystem.
 # Mac OSX
 
 *** NOTE: the following procedure was tested on Mac OS X 10.11.5 (El Capitan)
-but should be valid on any relatively modern version of Mac OS.***
+but should be valid on any relatively modern version of Mac OSX.***
 
 The easiest way to install all the required libraries is via [Homebrew](http://brew.sh).
 If brew is not already installed, follow the instructions on:
@@ -55,7 +55,7 @@ If brew is not already installed, follow the instructions on:
 [http://brew.sh](http://brew.sh) to install the latest version.
 
 
-Once brew is ready to go, open the terminal and enter the following commands
+Once brew is installed, open a terminal and enter the following commands
 
 ```
 $ brew update
@@ -65,19 +65,19 @@ $ brew install homebrew/science/opencv3
 ```
 
 to install [CMake](https://cmake.org), [Boost](http://www.boost.org) and 
-[OpenCV](http://opencv.org) in ```/usr/local/Cellar```.
+[OpenCV](http://opencv.org) in ```/usr/local/Cellar/```.
 
 The next step is to install [node.js](https://nodejs.org). Download the 
-"Mac OS X Installer (.pkg)" from the [download section](http://nodejs.org/en/download)
-and run the package. You can verify that node.js is properly installed by
-entering the command:
+"Mac OS X Installer (.pkg)" from the [nodejs download page](http://nodejs.org/en/download)
+and run the installation package. You can verify that node.js is properly installed with the
+commands:
 
 ```
 $ node --version
 $ npm --version
 ```
 
-that should respond with the currently installed version.
+that should respond with the currently installed version of both ```node``` and ```npm```.
 
 At this point, download the latest wass source code from the offical repository
 (if you haven't done it yet) in a local directory of your choice. For example,
@@ -121,7 +121,7 @@ wass_prepare arguments:
   --c1 arg              Cam1 image file
 ```
 
-To build WASSjs, enter the commands (assuming the current directory being ```dist/bin``` ): 
+To build WASSjs, enter the commands (assuming the current directory being ```<WASS_ROOT>/dist/bin/``` ): 
 
 ```
 $ cd ../../WASSjs

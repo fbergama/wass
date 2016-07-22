@@ -9,6 +9,11 @@ h2 {
     margin-bottom: 0.8em;
 }
 
+h3 {
+    margin-top: 1.8em;
+    margin-bottom: 1.0em;
+}
+
 .maintitle {
     margin-bottom: 0.3em;
     font-size: 4em;
@@ -41,4 +46,14 @@ table td {
 table th {
     padding: 0.5em;
     background-color: #e0e0e0;
+}
+
+img {
+    border: 1px solid #d0d0d0;
+    margin: 1%;
+}
+
+.platformlogo {
+    height: 140px;
+    border: 0px;
 }

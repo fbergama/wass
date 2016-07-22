@@ -97,16 +97,39 @@ Open ```<WASS_ROOT>/WASSjs``` and double click on ```launch_wassjs.bat```. Two c
 
 Open your browser at the address [http://localhost:8080](http://localhost:8080) to access the wass monitor:
 
+<img src="/img/wassjs_screen.png" width="90%" />
 
 ### Step 2 - Prepare the working directories
 
-From the top menu, click on ```Prepare```. You should see the working progress in the
+From the top menu, click on ```PREPARE``` to start the workspaces preparation process. After a while, the system status will return to ```idle``` and a new ```prepared``` status should be marked in green.
+
+<img src="/img/prepared_status.png" style="height: 50px" />
+
+If you look inside the ```<WASS_ROOT>/test/WASS_TEST/output_W07/``` you should see that a new directory has been created for each input stereo pair. 
 
 
 ### Step 3 - Auto-calibrate the stereo cameras
 
+To proceed with the extrinsic calibration of the stereo cameras click on ```MATCH``` command on the top menu. WASSjs will start the initial matching step between all the stereo pairs. During the processing, the "overall progress" is displayed in the central part of the page, together with a list of the currently running processes.
+
+<img src="/img/matching_progress.png" width="90%" />
+
+When the match is completed, the system will return to ```idle``` status and a new ```matched``` status will be marked in green.
+
+<img src="/img/matched_status.png" style="height: 50px" />
+
+At this point, click on ```AUTO-CALIBRATE``` on the top menu to perform the final auto-calibration step. As usual, the system status will be updated show that the cameras are now calibrated.
+
+<img src="/img/calibrated_status.png" style="height: 50px" />
 
 ### Step 4 - Run the 3D reconstruction
 
+To reconstruct the stereo sequence, click on ```DENSE STEREO``` on the top menu. If the whole process is successful, the final system status will be the following:
+
+<img src="/img/final_status.png" style="height: 50px" />
+
+At this point, in the output directory ```<WASS_ROOT>/test/WASS_TEST/output_W07/``` you should see all the processed data frames as different zip files.
+
+### Examining the results
 
 

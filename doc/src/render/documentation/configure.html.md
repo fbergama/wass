@@ -1,11 +1,11 @@
 ---
-title: "Pipeline setup"
+title: "Configuration"
 layout: "default"
 isPage: true
 menuOrder: 4
 ---
 
-# Pipeline setup
+# Pipeline Configuration
 
 
 
