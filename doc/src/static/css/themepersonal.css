@@ -16,13 +16,31 @@ h3 {
 
 .maintitle {
     margin-bottom: 0.3em;
-    font-size: 4em;
+    font-size: 4.4em;
     margin-top: 0.3em;
 }
 
 .subtitle {
    /*font-variant: small-caps;*/
+   font-size: 1.1em;
+}
+
+.subtitle2 {
+   /*font-variant: small-caps;*/
    font-size: 1em;
+}
+
+.logodiv {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 30px;
+    width: 750px;
+    border: none;
+}
+
+.logoimg {
+    border: none;
+    height: 63px;
 }
 
 .navbar-inverse {

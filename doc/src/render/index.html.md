@@ -8,13 +8,20 @@ isPage: true
 <h1 class="maintitle">Welcome to the WASS project</h1>
 <p class="subtitle" >WASS (Waves Acquisition Stereo System) is an optimized stereo processing pipeline for sea waves 3D reconstruction.</p>
 <video width="800" height="422" autoplay loop >
-  <source src="/videos/3d_mesh_2.mp4" >
+  <source src="/wass/videos/3D_mesh_2.mp4" >
   Your browser does not support the video tag.
 </video>
 
 </div>
 
+<p class="subtitle2">
 WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) as a joint-collaboration between [Università Ca'Foscari di Venezia](http://www.unive.it) and [CNR ISMAR](http://www.ismar.cnr.it). It is a result of more than 3 years of active research with [Alvise Benetazzo](http://www.ismar.cnr.it/people/benetazzo-alvise) (CNR-ISMAR) in the field of accurate 3D surface reconstruction of sea waves.
+</p>
+
+<div class="logodiv" >
+<img src="/wass/img/unive-logo.jpg" class="logoimg" />&nbsp;
+<img src="/wass/img/cnr-logo.jpg" class="logoimg" />
+</div>
 
 # Features
 

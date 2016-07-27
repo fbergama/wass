@@ -8,7 +8,7 @@
                 </a>
                 <%- renderMenuSub(item.children) %>
             <% else: %>
-                    <a href="<%= item.url %>"><%= item.title %></a>
+                    <a href="/wass<%= item.url %>"><%= item.title %></a>
             <% end %>
         </li>
     <% end %>
@@ -20,7 +20,7 @@
     <% for item in items: %>
         <li<% if item.state: %> class="active"<% end %>>
             <% if item.state != 'current': %>
-                <a href="<%= item.url %>"><%= item.title %></a>
+                <a href="/wass<%= item.url %>"><%= item.title %></a>
             <% else: %>
                 <a href="#"><%= item.title %></a>
             <% end %>

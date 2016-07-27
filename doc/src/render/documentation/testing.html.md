@@ -14,7 +14,7 @@ scripts against a set of synthetically generated stereo frames. Please be aware 
 ## Downloading the test data
 
 Download the test data from
-[http://www.dsi.unive.it/~bergamasco/tmp/WASS_TEST.zip](http://www.dsi.unive.it/~bergamasco/tmp/WASS_TEST.zip)
+[http://www.dsi.unive.it/WASS/WASS_TEST.zip](http://www.dsi.unive.it/WASS/WASS_TEST.zip)
 and unzip the downloaded package into the ```<WASS_ROOT>/test``` directory.
 
 Your ```<WASS_ROOT>/test``` directory should look similar to this:

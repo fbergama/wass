@@ -12,12 +12,12 @@
     <title>WASS::<%= @document.title %></title>
 
     <!-- Bootstrap core CSS -->
-    <link href="/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/wass/css/bootstrap.min.css" rel="stylesheet">
 
     <!-- Custom styles for this template -->
-    <link href="/css/starter-template.css" rel="stylesheet">
-    <link href="/css/theme.css" rel="stylesheet">
-    <link href="/css/themepersonal.css" rel="stylesheet">
+    <link href="/wass/css/starter-template.css" rel="stylesheet">
+    <link href="/wass/css/theme.css" rel="stylesheet">
+    <link href="/wass/css/themepersonal.css" rel="stylesheet">
   </head>
 
   <body>
@@ -31,7 +31,7 @@
             <span class="icon-bar"></span>
             <span class="icon-bar"></span>
           </button>
-          <a class="navbar-brand" href="/index.html">WASS</a>
+          <a class="navbar-brand" href="/wass/index.html">WASS</a>
         </div>
         <div id="navbardiv" class="collapse navbar-collapse">
             <%- @partial('menu.html.eco', {menuItems: @generateMenu(@document.url)}) %>
@@ -50,12 +50,12 @@
     ================================================== -->
     <!-- Placed at the end of the document so the pages load faster -->
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.3/jquery.min.js"></script>
-    <script src="/js/bootstrap.min.js"></script>
+    <script src="/wass/js/bootstrap.min.js"></script>
 
     <%- @getBlock("scripts").toHTML() %>
 
-    <style>#forkongithub a{background:#949494;color:#FFFFFF;text-decoration:none;font-family:arial,sans-serif;text-align:center;font-weight:bold;padding:5px 40px;font-size:1.2rem;line-height:2rem;position:relative;transition:0.5s;}#forkongithub a:hover{background:#F4F4F4;color:#000000;}#forkongithub a::before,#forkongithub a::after{content:"";width:100%;display:block;position:absolute;top:1px;left:0;height:1px;background:#fff;}#forkongithub a::after{bottom:1px;top:auto;}@media screen and (min-width:800px){#forkongithub{position:absolute;display:block;top:0;right:0;width:200px;overflow:hidden;height:200px;z-index:9999;}#forkongithub a{width:200px;position:absolute;top:42px;right:-40px;transform:rotate(45deg);-webkit-transform:rotate(45deg);-ms-transform:rotate(45deg);-moz-transform:rotate(45deg);-o-transform:rotate(45deg);box-shadow:4px 4px 10px rgba(0,0,0,0.8);}}</style><span id="forkongithub">
-    <a href="https://github.com/codepo8/css-fork-on-github-ribbon">Fork me on GitHub</a>
+   <style>#forkongithub a{background:#949494;color:#FFFFFF;text-decoration:none;font-family:arial,sans-serif;text-align:center;font-weight:bold;padding:5px 40px;font-size:1.2rem;line-height:2rem;position:relative;transition:0.5s;}#forkongithub a:hover{background:#F4F4F4;color:#000000;}#forkongithub a::before,#forkongithub a::after{content:"";width:100%;display:block;position:absolute;top:1px;left:0;height:1px;background:#fff;}#forkongithub a::after{bottom:1px;top:auto;}@media screen and (min-width:800px){#forkongithub{position:absolute;display:block;top:0;right:0;width:200px;overflow:hidden;height:200px;z-index:9999;}#forkongithub a{width:200px;position:absolute;top:42px;right:-40px;transform:rotate(45deg);-webkit-transform:rotate(45deg);-ms-transform:rotate(45deg);-moz-transform:rotate(45deg);-o-transform:rotate(45deg);box-shadow:4px 4px 10px rgba(0,0,0,0.8);}}</style><span id="forkongithub">
+    <a href="https://github.com">Fork me on GitHub</a>
     </span>
 
 

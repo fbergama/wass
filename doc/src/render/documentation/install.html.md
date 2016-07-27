@@ -27,7 +27,7 @@ WASS relies to the following 3rd party components:
 - [redis](http://redis.io) In-memory data structure store
 - [node.js](https://nodejs.org) Javascript runtime
 
-Additionally, [Matlab](www.mathworks.com) is required for some post-processing steps like surface estimation and waves spectrum recovery.
+Additionally, [Matlab](http://www.mathworks.com) is required for some post-processing steps like surface estimation and waves spectrum recovery.
 
 ## Note for multi-core/cpu platforms
 
@@ -143,7 +143,7 @@ but requires a prior building of OpenCV, Boost C++ Libraries and
 [CLAPACK](http://www.netlib.org/clapack/).
 
 For this reason, ***it's higly recommended to install the Binary Version***
-from the [download section](/download.html) and unzip the downloaded package on
+from the [download section](/wass/download.html) and unzip the downloaded package on
 a directory of your choice. We will refer to that directory as
 ```<BOOST_ROOT>``` throughout this documentation.
 

@@ -34,7 +34,7 @@ The "working directory" is a basic unit of work that holds two corresponding ste
 ## How to run it
 
 If you skipped the testing step, please download the data from
-[http://www.dsi.unive.it/~bergamasco/tmp/WASS_TEST.zip](http://www.dsi.unive.it/~bergamasco/tmp/WASS_TEST.zip)
+[http://www.dsi.unive.it/wass/WASS_TEST.zip](http://www.dsi.unive.it/wass/WASS_TEST.zip)
 and unzip the downloaded package into the ```<WASS_ROOT>/test``` directory. That package also contains the sample stereo sequence we are going to process.
 
 In ```<WASS_ROOT>/test/W07/``` you can see how an hypotetical image sequence should be prepared for the reconstruction. The ```config/``` subdirectory contains the calibration data (at least the intrinsics) and some configuration files. The ```input/``` subdirectory contains the image data, divided between the two cameras, whose name convention follows the rule:
@@ -65,7 +65,9 @@ In our case, the ```input/``` subdirectory looks as follows:
 
 ```
 
-After the installation, WASS is pre-configured to reconstruct the sequence inside ```<WASS_ROOT>/test/W07/```. To launch WASSjs (the pipeline monitor), execute the following:
+After the installation, WASS is pre-configured to reconstruct the sequence
+inside ```<WASS_ROOT>/test/W07/```. To launch WASSjs (the pipeline monitor),
+execute the following:
 
 ### On Linux / Mac OSX
 
@@ -88,8 +90,8 @@ WASSjs is now running. Keep both the terminals open during its whole execution.
 
 ### On Windows
 
-Open ```<WASS_ROOT>/WASSjs``` and double click on ```launch_wassjs.bat```. Two command prompts will appear to show debug informations during WASS execution.
-
+Open ```<WASS_ROOT>/WASSjs``` and double click on ```launch_wassjs.bat```. Two
+command prompts will appear to show debug informations during WASS execution.
 
 <br/>
 
@@ -97,13 +99,13 @@ Open ```<WASS_ROOT>/WASSjs``` and double click on ```launch_wassjs.bat```. Two c
 
 Open your browser at the address [http://localhost:8080](http://localhost:8080) to access the wass monitor:
 
-<img src="/img/wassjs_screen.png" width="90%" />
+<img src="/wass/img/wassjs_screen.png" width="90%" />
 
 ### Step 2 - Prepare the working directories
 
 From the top menu, click on ```PREPARE``` to start the workspaces preparation process. After a while, the system status will return to ```idle``` and a new ```prepared``` status should be marked in green.
 
-<img src="/img/prepared_status.png" style="height: 50px" />
+<img src="/wass/img/prepared_status.png" style="height: 50px" />
 
 If you look inside the ```<WASS_ROOT>/test/WASS_TEST/output_W07/``` you should see that a new directory has been created for each input stereo pair. 
 
@@ -112,21 +114,21 @@ If you look inside the ```<WASS_ROOT>/test/WASS_TEST/output_W07/``` you should s
 
 To proceed with the extrinsic calibration of the stereo cameras click on ```MATCH``` command on the top menu. WASSjs will start the initial matching step between all the stereo pairs. During the processing, the "overall progress" is displayed in the central part of the page, together with a list of the currently running processes.
 
-<img src="/img/matching_progress.png" width="90%" />
+<img src="/wass/img/matching_progress.png" width="90%" />
 
 When the match is completed, the system will return to ```idle``` status and a new ```matched``` status will be marked in green.
 
-<img src="/img/matched_status.png" style="height: 50px" />
+<img src="/wass/img/matched_status.png" style="height: 50px" />
 
 At this point, click on ```AUTO-CALIBRATE``` on the top menu to perform the final auto-calibration step. As usual, the system status will be updated show that the cameras are now calibrated.
 
-<img src="/img/calibrated_status.png" style="height: 50px" />
+<img src="/wass/img/calibrated_status.png" style="height: 50px" />
 
 ### Step 4 - Run the 3D reconstruction
 
 To reconstruct the stereo sequence, click on ```DENSE STEREO``` on the top menu. If the whole process is successful, the final system status will be the following:
 
-<img src="/img/final_status.png" style="height: 50px" />
+<img src="/wass/img/final_status.png" style="height: 50px" />
 
 At this point, in the output directory ```<WASS_ROOT>/test/WASS_TEST/output_W07/``` you should see all the processed data frames as different zip files.
 
