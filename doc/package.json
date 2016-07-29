@@ -4,7 +4,7 @@
   "description": "WASS offical homepage/documentation",
   "dependencies": {
     "docpad": "~6.78.6",
-    "docpad-plugin-eco": "^2.1.0",
+    "docpad-plugin-eco": "~2.1.0",
     "docpad-plugin-livereload": "~2.7.1",
     "docpad-plugin-marked": "~2.3.0",
     "docpad-plugin-menu": "~2.1.0",
