@@ -67,7 +67,7 @@ In our case, the ```input/``` subdirectory looks as follows:
 
 After the installation, WASS is pre-configured to reconstruct the sequence
 inside ```<WASS_ROOT>/test/W07/```. To launch WASSjs (the pipeline monitor),
-execute the following:
+execute the following commands, depending on your platform.
 
 ### On Linux / Mac OSX
 

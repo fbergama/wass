@@ -85,7 +85,7 @@ to download wass on your home directory enter the commands:
 
 ```
 $ cd ~
-$ git clone https://##
+$ git clone https://github.com/fbergama/wass
 $ cd wass
 $ git submodule update --init
 ```
@@ -145,7 +145,7 @@ but requires a prior building of OpenCV, Boost C++ Libraries and
 For this reason, ***it's higly recommended to install the Binary Version***
 from the [download section](/wass/download.html) and unzip the downloaded package on
 a directory of your choice. We will refer to that directory as
-```<BOOST_ROOT>``` throughout this documentation.
+```<WASS_ROOT>``` throughout this documentation.
 
 After that, download the latest ***nodejs*** for Windows from
 [http://nodejs.org/en/download](http://nodejs.org/en/download), choose the

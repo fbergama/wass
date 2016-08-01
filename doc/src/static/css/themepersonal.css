@@ -52,6 +52,10 @@ h3 {
     background-color: #e5e5e5;
 }
 
+.publist li {
+    margin-bottom: 1em;
+}
+
 table {
     margin-top: 2em;
     margin-bottom: 2em;

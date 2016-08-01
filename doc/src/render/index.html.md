@@ -39,7 +39,7 @@ WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/)
 
 You are more than welcome to contribute either by improving the code or by testing it with your stereo data. If you are using WASS for your research, please [contact the authors](mailto:alvise.benetazzo@ve.ismar.cnr.it) for informations on how to cite this work.
 
-To report bugs or propose new features please use the [GitHub Issue Tracker](#).
+To report bugs or propose new features please use the [GitHub Issue Tracker](https://github.com/fbergama/wass/issues).
  
 
 # License
