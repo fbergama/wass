@@ -30,6 +30,17 @@ The "working directory" is a basic unit of work that holds two corresponding ste
 
 ```000000_wd/``` for the first frame, ```000001_wd/``` for the second, and so on. No assumption are made on the temporal difference between two frames that are all considered independent and hence processed in parallel.
  
+## Note for multi-core/cpu platforms
+
+Each wass component (ie. ```wass_stereo```, ```wass_match```, etc.) runs as a
+single-threaded process performing a specific task on a working directory. To
+exploit the intrinsic parallelism of the stereo reconstruction task, the WASSjs
+controller manages multiple parallel instances of each component. 
+
+As a consequence, WASS can scale well in distributed memory machines (like
+virtualized environments) with the only requirement to have a consistent shared
+view of a common filesystem.
+
 
 ## How to run it
 

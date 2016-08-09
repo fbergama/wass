@@ -13,13 +13,12 @@ The suggested way to obtain the latest version of WASS for ***Linux*** or
 ***Mac OSX*** is by cloning the project GitHub repository and compile it from
 sources.
 
-Open a terminal in a directory of your choice (we will later refer to that
-directory as ```<WASS_ROOT>```) and enter the following commands:
+Open a terminal in a directory of your choice and enter the following commands:
 
 ```
-$ git clone https://github.com/fbergama/wass
-$ cd wass
-$ git submodule update --init
+git clone https://github.com/fbergama/wass
+cd wass
+git submodule update --init
 ```
 
 Read the [Installation instructions](documentation/install.html) for a step-by-step tutorial
