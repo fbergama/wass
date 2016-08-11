@@ -11,3 +11,23 @@ It was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) a
 [http://www.dais.unive.it/wass](http://www.dais.unive.it/wass)
 
 
+## License
+
+```
+Copyright (C) 2016 Filippo Bergamasco 
+
+WASS is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+WASS is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+```
+
+
