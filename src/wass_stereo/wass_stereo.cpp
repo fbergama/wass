@@ -557,8 +557,7 @@ INCFG_REQUIRE( int, MAX_DISPARITY, 640, "Maximum disparity allowed")
 INCFG_REQUIRE( int, WINSIZE, 13, "Stereo match window size")
 INCFG_REQUIRE( double, DENSE_SCALE, 1.0, "Image resize before dense stereo")
 
-INCFG_REQUIRE( int, DENSE_DISP_OFFSET, 0, "Offset in pixel to be applied")
-INCFG_REQUIRE( int, DIVERGENCE_COMPENSATION, 0, "Offset in pixel to be applied")
+INCFG_REQUIRE( int, DISPARITY_OFFSET, 0, "Offset in pixel to be applied. Positive: move right image to the right. Negative: move right image to the left")
 
 INCFG_REQUIRE( int, DISP_DILATE_STEPS, 1, "Number of dilate steps to be applied to the disparity map")
 INCFG_REQUIRE( int, DISP_EROSION_STEPS, 2, "Number of erosion steps to be applied to the disparity map")
@@ -600,11 +599,23 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     // we have to pad left and right images to numberOfDisparities rows to avoid opencv dense stereo bug
 
-    const int disp_offset = INCFG_GET(DENSE_DISP_OFFSET);
-    LOGI << "disp offset: " << disp_offset << " (px)";
+    const int disparity_offset = INCFG_GET( DISPARITY_OFFSET );
+    LOGI << "Disparity offset: " << disparity_offset << " px";
+    int disp_offset = 0;
+    env.disparity_compensation = 0;
+    if( disparity_offset > 0)
+    {
+        disp_offset = disparity_offset;
+    }
+    else
+    {
+        env.disparity_compensation = -disparity_offset;
+    }
 
-    env.disparity_compensation = INCFG_GET(DIVERGENCE_COMPENSATION);
-    LOGI << "divergence compensation: " << env.disparity_compensation << " (px)";
+    //const int disp_offset = disparity_offset > 0 ? disparity_offset : 0;//INCFG_GET(DENSE_DISP_OFFSET);
+    //LOGI << "disp offset: " << disp_offset << " (px)";
+    //env.disparity_compensation = INCFG_GET(DIVERGENCE_COMPENSATION);
+    //LOGI << "divergence compensation: " << env.disparity_compensation << " (px)";
 
 
     int stereo_img_width = left_input.cols+numberOfDisparities+disp_offset;
