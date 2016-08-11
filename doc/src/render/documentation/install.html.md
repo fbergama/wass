@@ -55,7 +55,7 @@ git clone https://github.com/opencv/opencv.git --depth 1
 cd opencv
 mkdir build
 cd build 
-cmake ../src/ -DCMAKE_INSTALL_PREFIX="../dist/" -DCMAKE_BUILD_TYPE="Release"
+cmake ../ -DCMAKE_INSTALL_PREFIX="../dist/" -DCMAKE_BUILD_TYPE="Release"
 make
 make install
 cd ../..
@@ -104,7 +104,7 @@ cd ext
 tar xvfz redis-2.8.19.tar.gz
 cd redis-2.8.19
 make
-cd ../..
+cd ../../..
 ```
 
 WASS should be installed and configured. You can proceed with [testing the pipeline](testing.html).

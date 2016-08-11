@@ -12,7 +12,7 @@ Assuming that your WASS installation was successful this tutorial will let you r
 ## WASS architecture
 
 WASS is composed by a set of program executables that perform, in sequence, specific steps of the reconstruction process (that's why is called a pipeline).
-An external process, called ```WASSjs```, controls the execution of such pipeline to provide a simple graphical (web-based) user interface to the user and exploit the best possible parallelism offered by modern multi-core machines.
+An external process, called ```WASSjs```, controls the execution of such pipeline to provide a simple graphical web-based user interface to the user and exploit the best possible parallelism offered by modern multi-core machines.
 
 At the moment, WASS is composed by the following programs (you can see them under ```<WASS_ROOT>/dist/bin/```):
 
