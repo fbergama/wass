@@ -171,7 +171,7 @@ int main( int argc, char* argv[] )
         LOGI << "Matching " << workdir;
 
         // Features extraction
-        cv::Mat img0 = cv::imread( (workdir/"undistorted"/"00000000.png").c_str(), cv::IMREAD_GRAYSCALE );
+        cv::Mat img0 = cv::imread( (workdir/"undistorted"/"00000000.png").string(), cv::IMREAD_GRAYSCALE );
         if( img0.rows==0 || img0.cols==0 )
         {
             LOGE << "Unable to open undistorted/00000000.png";
@@ -188,7 +188,7 @@ int main( int argc, char* argv[] )
         img0_f = cv::Mat();
 
 
-        cv::Mat img1 = cv::imread( (workdir/"undistorted"/"00000001.png").c_str(), cv::IMREAD_GRAYSCALE );
+        cv::Mat img1 = cv::imread( (workdir/"undistorted"/"00000001.png").string(), cv::IMREAD_GRAYSCALE );
         if( img1.rows==0 || img1.cols==0 )
         {
             LOGE << "Unable to open undistorted/00000001.png";
@@ -281,7 +281,7 @@ int main( int argc, char* argv[] )
         WASS::match::MatchList all_matches_filtered;
         for( size_t i=0; i<all_matches.size(); ++i )
         {
-            if( mask.at<bool>(i) )
+            if( mask.at<bool>( static_cast<int>(i) ) )
             {
                 all_matches_filtered.push_back( all_matches[i] );
                 pts0_px.push_back( (all_matches[i]).imga_loc );

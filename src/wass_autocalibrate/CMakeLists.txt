@@ -32,13 +32,17 @@ else()
 
     MESSAGE( STATUS "SBA_LIBRARY: ${SBA_LIBRARY}")
 
-
+if( MSVC )
+	# Use the CMAKE version of clapack. See: http://www.netlib.org/clapack/
+	find_package( clapack )
+else()
     find_package( LAPACK )
     if( NOT LAPACK_FOUND )
         MESSAGE( FATAL_ERROR "Lapack (required by sba) not found.")
     else()
         MESSAGE( STATUS "Lapack found: ${LAPACK_LIBRARIES}")
     endif()
+endif()
 
 endif()
 
@@ -54,6 +58,10 @@ include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                       ${SBA_INCLUDE_DIR}
                     )
 
+if(MSVC)
+link_directories( ${Boost_LIBRARY_DIR_RELEASE} )
+endif()
+
 add_executable( ${PROJECT_NAME} wass_autocalibrate.cpp
                                 sba_driver.cpp
                                 sba_driver.h
@@ -61,7 +69,12 @@ add_executable( ${PROJECT_NAME} wass_autocalibrate.cpp
               )
 
 
+if(MSVC)
+target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} ${SBA_LIBRARY} ${LAPACK_LIBRARIES} f2c blas lapack )
+else()
 target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} ${Boost_LIBRARIES} ${SBA_LIBRARY} ${LAPACK_LIBRARIES} )
+endif()
+
 INSTALL( TARGETS ${PROJECT_NAME} DESTINATION bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE )
 
 

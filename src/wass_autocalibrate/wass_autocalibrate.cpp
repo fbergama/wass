@@ -161,7 +161,7 @@ int main( int argc, char* argv[] )
         std::vector< cv::Vec2d > pts1_px;
         std::vector< cv::Vec3d > pts3d;
 
-        for( size_t i=0; i<mask.rows; ++i )
+        for( int i=0; i<mask.rows; ++i )
         {
             if( mask.at<bool>(i) )
             {

@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "FeatureSet.h"
 #include <vector>
+#include <boost/config.hpp>
 
 
 namespace WASS
@@ -55,7 +56,7 @@ public:
     {
     public:
         inline GTMatcherException( std::string _wh ) : wh(_wh) {}
-        virtual const char* what() const noexcept { return wh.c_str(); }
+        virtual const char* what() const BOOST_NOEXCEPT { return wh.c_str(); }
 
     private:
         std::string wh;

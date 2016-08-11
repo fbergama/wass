@@ -31,7 +31,7 @@ namespace cvlab {
  *	Win32 Hi-res timer code
  */
 
-double LI1D(LARGE_INTEGER *i)
+double LI1D( const LARGE_INTEGER *i )
 {
    return(i->LowPart+(i->HighPart*4294967296.0));
 }

@@ -1,9 +1,3 @@
-#include "FeatureSet.h"
-#include "hires_timer.h"
-#include "surflib.h"
-#include "log.hpp"
-#include "incfg.hpp"
-#include <fstream>
 /*************************************************************************
 
 WASS - Wave Acquisition Stereo System
@@ -24,7 +18,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
 
-
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include "FeatureSet.h"
+#include "hires_timer.h"
+#include "surflib.h"
+#include "log.hpp"
+#include "incfg.hpp"
+#include <fstream>
 #include <boost/cstdint.hpp>
 #include <boost/scoped_array.hpp>
 
@@ -37,7 +38,7 @@ using WASS::match::SURF_Extractor_params;
 
 
 INCFG_REQUIRE( double, FEATURE_MIN_DISTANCE, 10.0, "Minimum distance allowed between two features (in px)" )
-INCFG_REQUIRE( double, FEATURE_HESSIAN_THRESHOLD, 0.0001, "OpenSURF Hessian threshold" )
+INCFG_REQUIRE( float, FEATURE_HESSIAN_THRESHOLD, 0.0001f, "OpenSURF Hessian threshold" )
 INCFG_REQUIRE( int, FEATURE_N_OCTAVES, 4, "OpenSURF number of octaves" )
 INCFG_REQUIRE( int, FEATURE_N_LAYERS, 4, "OpenSURF number of layers" )
 INCFG_REQUIRE( int, FEATURE_INIT_SAMPLES, 1, "OpenSURF init samples" )
@@ -265,7 +266,7 @@ void FeatureSet::detect( cv::Mat img, size_t max_features, SURF_Extractor_params
                 Feature newf( f.x, f.y, f.scale, f.orientation );
                 //fix orientation
                 if (newf.angle < 0.0f) newf.angle = 0.0f; // might happen in case of numerical errors
-                if (newf.angle > 2.0f * M_PI) newf.angle = 2.0f * M_PI;
+                if (newf.angle > static_cast<float>(2.0 * M_PI)) newf.angle = static_cast<float>( 2.0 * M_PI );
 
                 newf.descriptor.resize(64);
                 for( size_t k=0; k<64; ++k )
@@ -381,8 +382,8 @@ void FeatureSet::renderToImage( cv::Mat img ) const
     for( size_t i=0; i<size(); ++i )
     {
         const Feature& ft = (*this)[i];
-        cv::circle( img, cv::Point2f( ft.x(), ft.y()), std::max<float>(ft.scale*2.0f, 1.0)+1, CV_RGB(0,0,0), 3, CV_AA );
-        cv::circle( img, cv::Point2f( ft.x(), ft.y()), std::max<float>(ft.scale*2.0f, 1.0), CV_RGB(150,150,150), 1 );
+        cv::circle( img, cv::Point( static_cast<int>(ft.x()), static_cast<int>(ft.y())), static_cast<int>(std::max<float>(ft.scale*2.0f, 1.0))+1, CV_RGB(0,0,0), 3, CV_AA );
+        cv::circle( img, cv::Point( static_cast<int>(ft.x()), static_cast<int>(ft.y())), static_cast<int>(std::max<float>(ft.scale*2.0f, 1.0)), CV_RGB(150,150,150), 1 );
     }
 
 }
