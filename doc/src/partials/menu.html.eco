@@ -1,0 +1,35 @@
+<% renderMenu = (items) => %>
+<ul class="nav navbar-nav">
+    <% for item in items: %>
+        <li<% if item.state: %> class="active"<% end %>>
+            <% if item.children: %>
+                <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">
+                <%= item.title %><span class="caret"></span>
+                </a>
+                <%- renderMenuSub(item.children) %>
+            <% else: %>
+                    <a href="/wass<%= item.url %>"><%= item.title %></a>
+            <% end %>
+        </li>
+    <% end %>
+</ul>   
+<% end %>
+
+<% renderMenuSub = (items) => %>
+<ul class="dropdown-menu">
+    <% for item in items: %>
+        <li<% if item.state: %> class="active"<% end %>>
+            <% if item.state != 'current': %>
+                <a href="/wass<%= item.url %>"><%= item.title %></a>
+            <% else: %>
+                <a href="#"><%= item.title %></a>
+            <% end %>
+            <% if item.children: %>
+                <%- renderMenuSub(item.children) %>
+            <% end %>
+        </li>
+    <% end %>
+</ul>   
+<% end %>
+
+<%= renderMenu @menuItems %>

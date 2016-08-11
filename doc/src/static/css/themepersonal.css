@@ -1,0 +1,81 @@
+
+h1 {
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+h2 {
+    margin-top: 0.8em;
+    margin-bottom: 0.8em;
+}
+
+h3 {
+    margin-top: 1.8em;
+    margin-bottom: 1.0em;
+}
+
+.maintitle {
+    margin-bottom: 0.3em;
+    font-size: 4.4em;
+    margin-top: 0.3em;
+}
+
+.subtitle {
+   /*font-variant: small-caps;*/
+   font-size: 1.1em;
+}
+
+.subtitle2 {
+   /*font-variant: small-caps;*/
+   font-size: 1em;
+}
+
+.logodiv {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 30px;
+    width: 750px;
+    border: none;
+}
+
+.logoimg {
+    border: none;
+    height: 63px;
+}
+
+.navbar-inverse {
+    background-color: #e5e5e5;
+    border-color: #e0e0e0;
+}
+
+.dropdown-menu {
+    background-color: #e5e5e5;
+}
+
+.publist li {
+    margin-bottom: 1em;
+}
+
+table {
+    margin-top: 2em;
+    margin-bottom: 2em;
+}
+
+table td {
+    padding: 1em;
+}
+
+table th {
+    padding: 0.5em;
+    background-color: #e0e0e0;
+}
+
+img {
+    border: 1px solid #d0d0d0;
+    margin: 1%;
+}
+
+.platformlogo {
+    height: 140px;
+    border: 0px;
+}
