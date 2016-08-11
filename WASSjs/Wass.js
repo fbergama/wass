@@ -455,7 +455,7 @@ Q.when( extexe_sanity_check(settings), function() {
                     utils.deleteRecursive( workspacepath+"mesh_full.ply" );
                 }
 
-                if( worksession.zipoutput ) {
+                if( process.platform != 'win32' && worksession.zipoutput ) {
                     var full_workspace_name = job.data.workspacename.slice(0,9);
                     
                     var tartask = new RunTask.RunTask( "zip", 
