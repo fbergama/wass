@@ -1,4 +1,7 @@
-# Your [DocPad](http://docpad.org) Project
+To generate the documentation enter the following commands:
 
-## License
-Copyright &copy; 2016+ All rights reserved.
+```
+npm install
+docpad generate
+```
+

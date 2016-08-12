@@ -114,10 +114,9 @@ WASS should be installed and configured. You can proceed with [testing the pipel
 *** NOTE: the following procedure was tested on Mac OS X 10.11.5 (El Capitan)
 but should be valid on any relatively modern version of Mac OSX.***
 
-The easiest way to install all the required libraries is via [Homebrew](http://brew.sh).
-If brew is not already installed, follow the instructions on:
-
-[http://brew.sh](http://brew.sh) to install the latest version.
+The easiest way to install all the required libraries is via
+[Homebrew](http://brew.sh).  If brew is not already installed, follow the
+instructions on [http://brew.sh](http://brew.sh) to install the latest version.
 
 
 Once brew is installed, open a terminal and enter the following commands

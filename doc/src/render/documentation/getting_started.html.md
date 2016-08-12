@@ -7,7 +7,7 @@ menuOrder: 3
 
 # Getting Started 
 
-Assuming that your WASS installation was successful this tutorial will let you run the pipeline to reconstruct some sample real-world sample data. This should help you acquire familiarity with some of the concepts will be expanded in the following parts of the documentation. 
+Assuming that your WASS installation was successful this tutorial will let you run the pipeline to reconstruct some sample real-world sample data. This should help you acquire familiarity with some of the concepts that will be expanded in the following parts of the documentation. 
 
 ## WASS architecture
 
