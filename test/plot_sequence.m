@@ -23,7 +23,7 @@ for iidx = 0:100
             cd(prev);
             was_unzipped = 1;
         else
-            fprintf( '%s does not exist, exiting\n' workdir);
+            fprintf( '%s does not exist, exiting\n', workdir);
             break;
         end
     end
@@ -62,20 +62,21 @@ for iidx = 0:100
     hs = scatter( pt2d(1,:), pt2d(2,:),1,elevations,'.');
     hs.MarkerEdgeAlpha=0.05;
     caxis( [-1.3 1.3] );
-    title(sprintf('Frame %06d - %07d points    WASS', iidx, Npts) );
+    title(sprintf('Frame %06d - %07d points      http://www.dais.unive.it/wass', iidx, Npts) );
     c = colorbar;
-    ylabel(c,'Wave height (m)');
+    ylabel(c,'Elevation (m)');
 
     axis ij;
     colormap jet;
+   
 
     crop = 20;
     hhfig.Position = [0 0 1440+crop*2 1080+crop*2];
+    drawnow;
     ii = getframe(hhfig);
     ii = ii.cdata;
     ii = ii( crop-10:(end-crop-10), crop+5:(end-crop-5), : );
     close all;
-
 
     imwrite(ii,sprintf('%s/frm%06d.png',framesdir,iidx));
 

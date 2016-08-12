@@ -29,7 +29,7 @@ on how to build the source code depending on your system.
 
 <img src="/wass/img/win.png" class="platformlogo" />
 
-For ***Microsoft Windows (64bit)***, you can also download a pre-built binary distribution (Tested on Windows 7, Compiled with MSVC 2012):
+For ***Microsoft Windows (64bit)***, you can also download a pre-built binary distribution (Tested on Windows 7, Compiled with MSVC 2015):
 
 - [wass_1.0_win32_x64.zip](/wass/files/wass_1.0_win32_x64.zip)
 
