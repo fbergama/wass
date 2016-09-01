@@ -10,7 +10,7 @@ if( NOT SBA_INCLUDE_DIR )
 
     MESSAGE( STATUS "SBA include dir not found, downloading...")
     SET( SBA_PACKAGE "${SBA_ROOT}/../sba-1.6.tgz" )
-    file(DOWNLOAD "http://users.ics.forth.gr/~lourakis/sba/sba-1.6.tgz" ${SBA_PACKAGE}  )
+    file(DOWNLOAD "http://www.dais.unive.it/wass/files/sba-1.6.tar" ${SBA_PACKAGE}  )
     execute_process(COMMAND ${CMAKE_COMMAND} -E tar xf ${SBA_PACKAGE} WORKING_DIRECTORY "${SBA_ROOT}/../")
     MESSAGE( STATUS "Compiling SBA...")
     execute_process(COMMAND "make" WORKING_DIRECTORY "${SBA_ROOT}" OUTPUT_QUIET ERROR_QUIET )
