@@ -125,6 +125,7 @@ Once brew is installed, open a terminal and enter the following commands
 brew update
 brew install cmake
 brew install boost
+brew install webp
 brew install homebrew/science/opencv3
 ```
 

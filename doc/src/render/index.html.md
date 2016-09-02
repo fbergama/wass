@@ -20,7 +20,8 @@ WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/)
 
 <div class="logodiv" >
 <img src="/wass/img/unive-logo.jpg" class="logoimg" />&nbsp;
-<img src="/wass/img/cnr-logo.jpg" class="logoimg" />
+<img src="/wass/img/cnr-logo.jpg" class="logoimg" />&nbsp;
+<img src="/wass/img/ritmare-logo.png" class="logoimg" />
 </div>
 
 # Features
