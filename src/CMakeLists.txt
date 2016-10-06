@@ -56,8 +56,6 @@ IF( OpenCV_FOUND )
     MESSAGE( STATUS "OpenCV Version ${OpenCV_VERSION} found.")
 ENDIF()
 
-find_package( Threads )
-
 IF( NOT Boost_INCLUDE_DIRS )
     set(Boost_USE_STATIC_LIBS OFF)
     set(Boost_USE_MULTITHREADED ON)
