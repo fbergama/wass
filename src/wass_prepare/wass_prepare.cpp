@@ -150,9 +150,19 @@ int main( int argc, char* argv[] )
 
     cv::Mat extR = WASS::load_matrix( calibdir/"ext_R.xml" );
     cv::Mat extT = WASS::load_matrix( calibdir/"ext_T.xml" );
-    if( extR.rows ==3 && extR.cols==3 && extT.rows == 3 && extT.cols == 3 )
+    if( extR.rows ==3 && extR.cols==3 && extT.rows == 3 && extT.cols == 1 )
     {
-        LOGI << "Extrinsic calibration found";
+        LOGI << "Extrinsic calibration found, copying to destination workdir";
+        {
+            cv::FileStorage fs( (wdir/"ext_R.xml").string(), cv::FileStorage::WRITE );
+            fs << "R" << extR;
+            fs.release();
+        }
+        {
+            cv::FileStorage fs( (wdir/"ext_T.xml").string(), cv::FileStorage::WRITE );
+            fs << "T" << extT;
+            fs.release();
+        }
     }
     else
     {
@@ -160,7 +170,7 @@ int main( int argc, char* argv[] )
     }
 
 
-    LOGI << "Saving calibration data";
+    LOGI << "Saving intrinsic calibration data";
 
     cv::FileStorage fs( (wdir/"intrinsics_00000000.xml").string(), cv::FileStorage::WRITE );
     fs << "intr" << intr0;

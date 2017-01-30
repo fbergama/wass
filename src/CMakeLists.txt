@@ -1,8 +1,10 @@
 CMAKE_MINIMUM_REQUIRED( VERSION 3.1 )
 PROJECT( WASS )
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
+SET( WASS_VERSION_STR "1.1" )
 
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
 set(CMAKE_CXX_STANDARD 11)
 
 
@@ -46,9 +48,10 @@ ENDIF("${isSystemDir}" STREQUAL "-1")
 
 ####################################
 
+set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
 
 
-# Search for required dependencies 
+# Search for required dependencies
 #
 #
 FIND_PACKAGE( OpenCV REQUIRED )
@@ -69,7 +72,6 @@ IF( NOT Boost_INCLUDE_DIRS )
 ENDIF()
 
 # Configure file
-SET( WASS_VERSION_STR "1.0" )
 execute_process( COMMAND "git"  "describe" "--all" "--long" RESULT_VARIABLE COMMAND_RETURN_CODE OUTPUT_VARIABLE WASS_GIT_VERSION_STR ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE )
 MESSAGE( STATUS "Command result: ${COMMAND_RETURN_CODE}")
 IF( ${COMMAND_RETURN_CODE} EQUAL 0 )
@@ -78,7 +80,7 @@ IF( ${COMMAND_RETURN_CODE} EQUAL 0 )
 ELSE()
     MESSAGE( STATUS "Setting default version")
 ENDIF()
-    
+
 SET( WASS_BUILD_ENV_STR "${CMAKE_SYSTEM} - ${CMAKE_CXX_COMPILER_ID}")
 
 configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/wassglobal.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/include/wassglobal.hpp" )
