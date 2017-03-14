@@ -72,7 +72,7 @@ struct PovMeshImpl
     inline const PovMesh::Point& PTc( const PointLocation& l ) const { return data[l.v*width+l.u]; }
     inline const PovMesh::Point& PTc( const size_t idx ) const { return data[idx]; }
 
-    size_t num_valid_points() const 
+    size_t num_valid_points() const
     {
         size_t n_valid = 0;
         for( size_t i=0; i<size(); ++i )
@@ -99,14 +99,14 @@ struct PovMeshImpl
             PT(i).valid = PT(i).component_id == id;
     }
 
-    cv::Vec3d centroid() const 
+    cv::Vec3d centroid() const
     {
         cv::Vec3d c;
         double n=0.0;
 
         for( size_t i=0; i<size(); ++i )
         {
-            if( PTc(i).valid ) 
+            if( PTc(i).valid )
             {
                 c += PTc(i).p3d;
                 n+=1.0;
@@ -140,7 +140,7 @@ struct PovMeshImpl
     void rotate_translate( cv::Matx33d R, cv::Vec3d T )
     {
         for( size_t i=0; i<size(); ++i )
-            PT(i).p3d = R*PT(i).p3d + T;        
+            PT(i).p3d = R*PT(i).p3d + T;
     }
 
 
@@ -263,7 +263,7 @@ struct PovMeshImpl
 
 
 
-PovMesh::PovMesh( const int _width, const int _height ) 
+PovMesh::PovMesh( const int _width, const int _height )
 {
     pImpl = new PovMeshImpl(_width,_height);
 }
@@ -319,19 +319,19 @@ cv::Mat PovMesh::to_image( ) const
     return img;
 }
 
-bool PovMesh::save_as_xyz( std::string filename ) const 
+bool PovMesh::save_as_xyz( std::string filename ) const
 {
     std::ofstream ofs( filename.c_str() );
     ofs.precision(15);
     ofs << std::scientific;
 
     if( ofs.fail() )
-        return false;    
+        return false;
 
     for( size_t i=0; i<pImpl->size(); ++i )
     {
         const PovMesh::Point& pt = pImpl->PTc(i);
-        if( pt.valid ) 
+        if( pt.valid )
         {
             ofs << pt.p3d[0] << " " << pt.p3d[1] << " " << pt.p3d[2] << std::endl;
         }
@@ -343,7 +343,7 @@ bool PovMesh::save_as_xyz( std::string filename ) const
 }
 
 
-bool PovMesh::save_as_xyz_binary( std::string filename ) const 
+bool PovMesh::save_as_xyz_binary( std::string filename ) const
 {
     std::ofstream ofs( filename.c_str(), std::ios::binary );
     if( ofs.fail() )
@@ -358,7 +358,7 @@ bool PovMesh::save_as_xyz_binary( std::string filename ) const
     for( size_t i=0; i<pImpl->size(); ++i )
     {
         const PovMesh::Point& pt = pImpl->PTc(i);
-        if( pt.valid ) 
+        if( pt.valid )
         {
             ptdata[idx++] = static_cast<float>(pt.p3d[0]);
             ptdata[idx++] = static_cast<float>(pt.p3d[1]);
@@ -460,7 +460,7 @@ bool PovMesh::save_as_xyz_compressed( std::string filename ) const
 }
 
 
-bool PovMesh::save_as_ply_points( std::string filename ) const 
+bool PovMesh::save_as_ply_points( std::string filename ) const
 {
     const size_t n_valid_points=pImpl->num_valid_points();
 
@@ -496,7 +496,7 @@ bool PovMesh::save_as_ply_points( std::string filename ) const
         for( size_t i=0; i<pImpl->size(); ++i )
         {
             const PovMesh::Point& pt = pImpl->PTc(i);
-            if( pt.valid ) 
+            if( pt.valid )
             {
                 *((float*)ptrD) = (float)pt.p3d[0]; ptrD+=sizeof(float);
                 *((float*)ptrD) = (float)pt.p3d[1]; ptrD+=sizeof(float);
@@ -505,8 +505,8 @@ bool PovMesh::save_as_ply_points( std::string filename ) const
                 *((unsigned char*)ptrD) = pt.color[1]; ptrD+=sizeof(unsigned char);
                 *((unsigned char*)ptrD) = pt.color[2]; ptrD+=sizeof(unsigned char);
             }
-        }   
-            
+        }
+
         ofs.write(data,datasize);
         delete[] data;
         ofs.flush();
@@ -553,12 +553,12 @@ void PovMesh::erode_borders()
                 good &= pImpl->PTc(u+1,v).valid;
 
             if(!good)
-                bad_indices.push_back(v*width()+u);                
-        }    
+                bad_indices.push_back(v*width()+u);
+        }
     }
 
     for( std::vector< size_t >::const_iterator it = bad_indices.begin(); it!=bad_indices.end(); ++it )
-        pImpl->PT(*it).valid = false;    
+        pImpl->PT(*it).valid = false;
 }
 
 
@@ -568,8 +568,8 @@ void PovMesh::crop(int top, int left, int bottom, int right)
     {
         for( int u=0; u<width(); ++u )
         {
-            pImpl->PT(u,v).valid = v>top && v<bottom && u>left && u<right;                           
-        }    
+            pImpl->PT(u,v).valid = v>top && v<bottom && u>left && u<right;
+        }
     }
 }
 
@@ -652,20 +652,25 @@ void PovMesh::refine_plane( double xmin, double xmax, double ymin, double ymax, 
 bool PovMesh::ransac_find_plane( const size_t n_ransac_rounds, const double distance_threshold  )
 {
     LOG_SCOPE("ransac_find_plane");
+
     const size_t NPTS=pImpl->size();
-
     size_t best_inliers=0;
+    double best_d=0;;
+    const int iW = pImpl->width;
+    const int iH = pImpl->height;
+    const double mindist = iH * 0.01;
     cv::Vec3d best_n;
-    double best_d;
-    for( size_t round=0; round<n_ransac_rounds; ++round )
-    {
-         cv::Vec2i p1coord( rand()%pImpl->width, rand()%pImpl->height );
-         cv::Vec2i p2coord( rand()%pImpl->width, rand()%pImpl->height );
-         cv::Vec2i p3coord( rand()%pImpl->width, rand()%pImpl->height );
 
-        if( cv::norm(p1coord-p2coord)<20 ||
-            cv::norm(p2coord-p3coord)<20 ||
-            cv::norm(p1coord-p3coord)<20 )
+
+    for( int round=0; round<n_ransac_rounds; ++round )
+    {
+         cv::Vec2i p1coord( rand()%iW, rand()%iH );
+         cv::Vec2i p2coord( rand()%iW, rand()%iH );
+         cv::Vec2i p3coord( rand()%iW, rand()%iH );
+
+        if( cv::norm(p1coord-p2coord)<mindist ||
+            cv::norm(p2coord-p3coord)<mindist ||
+            cv::norm(p1coord-p3coord)<mindist )
         {
             // Points are too close, try again
             round--;
@@ -678,7 +683,6 @@ bool PovMesh::ransac_find_plane( const size_t n_ransac_rounds, const double dist
 
         if( !p1M.valid ||  !p2M.valid || !p3M.valid )
         {
-            round--;
             continue;
         }
 
@@ -704,7 +708,7 @@ bool PovMesh::ransac_find_plane( const size_t n_ransac_rounds, const double dist
                 double dist = fabs(n.ddot( pImpl->PTc( i ).p3d ) + d);
                 if( dist<distance_threshold )
                 {
-                    n_inliers++;
+                    ++n_inliers;
                 }
             }
         }
@@ -816,7 +820,7 @@ void PovMesh::align_plane()
         LOGI << "Unable to align, no plane found." << std::endl;
 
     cv::Vec3d N = cv::normalize(pImpl->planeN);
-    if( N.ddot(cv::Vec3d(0,0,1))>0.0 ) 
+    if( N.ddot(cv::Vec3d(0,0,1))>0.0 )
         N*=-1.0;
 
     cv::Vec3d v2= cv::normalize(cv::Vec3d(0,-N[2],N[1]));
@@ -835,25 +839,25 @@ void PovMesh::align_plane()
     */
 
     cv::Vec3d centroid = pImpl->centroid();
-    
+
 
     if( !pImpl->plane_set )
         LOGE << "unable to align, no plane found.";
 
     cv::Vec3d N = cv::normalize(pImpl->planeN);
-    if( N.ddot(cv::Vec3d(0,0,1))>0.0 ) 
+    if( N.ddot(cv::Vec3d(0,0,1))>0.0 )
         N*=-1.0;
 
     cv::Vec3d v2= cv::normalize(cv::Vec3d(0,-N[2],N[1]));
     cv::Vec3d v1= cv::normalize( N.cross(v2) );
 
-    
+
     cv::Matx33d R = cv::Matx33d::eye();
     R(0,0) = v1[0]; R(0,1) = v1[1]; R(0,2) = v1[2];
     R(1,0) = v2[0]; R(1,1) = v2[1]; R(1,2) = v2[2];
     R(2,0) =  -N[0]; R(2,1) =  -N[1]; R(2,2) = -N[2];
 
-   
+
     pImpl->rotate_translate(R,R*cv::Vec3d(-centroid[0],-centroid[1],-centroid[2]) );
 }
 
@@ -1057,7 +1061,7 @@ void PovMesh::RT_from_plane( cv::Matx33d& R, cv::Vec3d& T, cv::Matx33d& Rinv, cv
 }
 
 
-bool PovMesh::save_as_triangulated_ply( std::string filename, double MAX_Z_GAP ) const 
+bool PovMesh::save_as_triangulated_ply( std::string filename, double MAX_Z_GAP ) const
 {
     //Keep only triangles with relative verices
 
@@ -1166,14 +1170,14 @@ bool PovMesh::save_as_triangulated_ply( std::string filename, double MAX_Z_GAP )
         // Write vertices
         for( size_t i=0; i<pts.size(); ++i )
         {
-            const PovMesh::Point& pt = pts[i];            
+            const PovMesh::Point& pt = pts[i];
             *((float*)ptrD) = (float)pt.p3d[0]; ptrD+=sizeof(float);
             *((float*)ptrD) = (float)pt.p3d[1]; ptrD+=sizeof(float);
             *((float*)ptrD) = (float)pt.p3d[2]; ptrD+=sizeof(float);
             *((unsigned char*)ptrD) = pt.color[0]; ptrD+=sizeof(unsigned char);
             *((unsigned char*)ptrD) = pt.color[1]; ptrD+=sizeof(unsigned char);
-            *((unsigned char*)ptrD) = pt.color[2]; ptrD+=sizeof(unsigned char);            
-        }   
+            *((unsigned char*)ptrD) = pt.color[2]; ptrD+=sizeof(unsigned char);
+        }
 
         ofs.write(data,datasize);
         delete[] data;
@@ -1185,13 +1189,13 @@ bool PovMesh::save_as_triangulated_ply( std::string filename, double MAX_Z_GAP )
         ptrD=data;
         for( size_t i=0; i<triangles.size(); ++i )
         {
-            const triangle_indices& t = triangles[i];   
-            
+            const triangle_indices& t = triangles[i];
+
             *((unsigned char*)ptrD) = 3; ptrD+=sizeof(unsigned char);
             *((boost::uint32_t*)ptrD) = static_cast<boost::uint32_t>(t.id0); ptrD+=sizeof(boost::uint32_t);
             *((boost::uint32_t*)ptrD) = static_cast<boost::uint32_t>(t.id1); ptrD+=sizeof(boost::uint32_t);
             *((boost::uint32_t*)ptrD) = static_cast<boost::uint32_t>(t.id2); ptrD+=sizeof(boost::uint32_t);
-        } 
+        }
 
         ofs.write(data,datasize);
         ofs.flush();
