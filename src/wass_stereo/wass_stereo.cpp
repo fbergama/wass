@@ -863,13 +863,14 @@ size_t triangulate( StereoMatchEnv& env )
     int prog=0;
     int maxprog = env.roi_comb_right.height;
     int last_percent=0;
+    const double stereo_scale = INCFG_GET(DENSE_SCALE);
     for( int yr_i=FIRSTROW; yr_i<env.roi_comb_right.y+env.roi_comb_right.height; yr_i++ )
     {
         for( int xr=env.roi_comb_right.x; xr<env.roi_comb_right.x+env.roi_comb_right.width; xr++ )
         {
             if( env.disparity.at<float>(yr_i,xr) > min_disp )
             {
-                float xl = (float)( xr - env.roi_comb_right.x + env.roi_comb_left.x - env.disparity.at<float>(yr_i,xr) + env.disparity_compensation );
+                float xl = (float)( xr - env.roi_comb_right.x + env.roi_comb_left.x - env.disparity.at<float>(yr_i,xr) + env.disparity_compensation/stereo_scale );
                 float yl = (float)yr_i;
 
                 if( xl < 0 || xl >= env.imgleft_map1.cols )
