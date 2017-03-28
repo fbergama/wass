@@ -7,10 +7,17 @@ isPage: true
 <div class="starter-template" >
 <h1 class="maintitle">Welcome to the WASS project</h1>
 <p class="subtitle" >WASS (Waves Acquisition Stereo System) is an optimized stereo processing pipeline for sea waves 3D reconstruction.</p>
+
+<video width="708" height="480" autoplay loop >
+  <source src="/wass/videos/wass_out_small_web.mp4" >
+  Your browser does not support the video tag.
+</video>
+<!--
 <video width="800" height="422" autoplay loop >
   <source src="/wass/videos/3D_mesh_2.mp4" >
   Your browser does not support the video tag.
 </video>
+-->
 
 </div>
 
