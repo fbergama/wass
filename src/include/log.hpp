@@ -36,8 +36,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define LOG_SCOPE(name) BOOST_LOG_NAMED_SCOPE(name)
 #define LOG(a) BOOST_LOG_TRIVIAL(a)
-#define LOGI BOOST_LOG_TRIVIAL(info)
+#define LOGI BOOST_LOG_TRIVIAL(info )
 #define LOGE BOOST_LOG_TRIVIAL(error)
+#define LOGW BOOST_LOG_TRIVIAL(warn )
 
 
 namespace WASS
@@ -52,16 +53,20 @@ namespace WASS
         typedef boost::log::sinks::synchronous_sink< boost::log::sinks::text_ostream_backend > text_sink;
         boost::shared_ptr< text_sink > sink = boost::make_shared< text_sink >();
 
-        if( logfilename.length()>1 )
-            sink->locked_backend()->add_stream( boost::make_shared< std::ofstream >(logfilename.c_str() ));
+        if( logfilename.length()>=1 )
+        {
+            boost::shared_ptr< std::ofstream > ofs = boost::make_shared< std::ofstream >(  logfilename.c_str() );
+            if( ofs && !ofs->fail() )
+                sink->locked_backend()->add_stream( ofs );
+        }
 
         sink->locked_backend()->add_stream( boost::shared_ptr< std::ostream >(&std::cout, boost::null_deleter()) );
 
-        sink->set_formatter( boost::log::expressions::stream << "(" << scope << ") " << boost::log::trivial::severity << ": " << boost::log::expressions::smessage );
+        sink->set_formatter( boost::log::expressions::stream << scope << " (" << boost::log::trivial::severity << "): " << boost::log::expressions::smessage );
 
         sink->locked_backend()->auto_flush(true);
 
-        boost::log::core::get()->add_sink(sink);
+        core->add_sink(sink);
     }
 }
 
