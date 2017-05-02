@@ -57,8 +57,27 @@ int main( int argc, char* argv[] )
     }
 
     po::variables_map vm;
-    po::store( po::parse_command_line( argc, argv, desc), vm );
-    po::notify( vm );
+
+    try
+    {
+        po::store( po::parse_command_line( argc, argv, desc), vm );
+        po::notify( vm );
+
+    } catch( boost::program_options::unknown_option& ex )
+    {
+        LOGE << ex.what();
+        return -1;
+
+    } catch( std::exception& ex2 )
+    {
+        LOGE << ex2.what();
+        return -1;
+
+    } catch( ... )
+    {
+        LOGE << "Generic program options parse error";
+        return -1;
+    }
 
 
     if( !vm.count("workdir") )
