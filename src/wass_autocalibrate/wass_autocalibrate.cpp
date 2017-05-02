@@ -76,7 +76,7 @@ int main( int argc, char* argv[] )
         std::ifstream ifs( argv[1] );
         if( !ifs.is_open() )
         {
-            LOGE << "Unable to load " << argv[2];
+            LOGE << "Unable to load " << argv[1];
             return -1;
         }
 
@@ -144,6 +144,13 @@ int main( int argc, char* argv[] )
         std::cout << "[P|50|100]" << std::endl;
         LOGI << pts_0.size() << " total matches loaded.";
 
+        if( pts_0.size() < 8 )
+        {
+
+            LOGE << "Not enough matches to continue. Aborting...";
+            return -1;
+        }
+
         LOGI << "Estimating global essential matrix";
 
         cv::Mat mask;
@@ -175,7 +182,7 @@ int main( int argc, char* argv[] )
                 if( pt3d[2] < 0 )
                 {
                     // Negative depth
-                    LOGE << "An estimated 3D points is behind the stereo rig.";
+                    LOGE << "An estimated 3D point is behind the stereo rig.";
                     return -1;
                 }
             }
