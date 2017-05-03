@@ -8,11 +8,13 @@ if ispc
     MATCH_EXE    = [EXE_DIR,'wass_match.exe'];
     AUTOCAL_EXE  = [EXE_DIR,'wass_autocalibrate.exe'];
     STEREO_EXE   = [EXE_DIR,'wass_stereo.exe'];
+    ENV_SET      = '';
 else
     PREPARE_EXE  = [EXE_DIR,'wass_prepare'];
     MATCH_EXE    = [EXE_DIR,'wass_match'];
     AUTOCAL_EXE  = [EXE_DIR,'wass_autocalibrate'];
     STEREO_EXE   = [EXE_DIR,'wass_stereo'];
+    ENV_SET      = 'LD_LIBRARY_PATH="" && ';
 end
 
 TEST_ROOT    = [pwd(),'/WASS_TEST'];
@@ -84,7 +86,7 @@ fprintf('***************************************************\n');
 tic;
 
 for ii=1:numel(input_frames)
-    assert( system( [PREPARE_EXE, ' --workdir ', input_frames{ii}.wd, ' --calibdir ', CONFIG_DIR, ...
+    assert( system( [ENV_SET, PREPARE_EXE, ' --workdir ', input_frames{ii}.wd, ' --calibdir ', CONFIG_DIR, ...
             ' --c0 ', input_frames{ii}.Cam0, ' --c1 ', input_frames{ii}.Cam1] ) == 0, 'component exited with non-zero return code');
 end
 
@@ -101,7 +103,7 @@ fprintf('***************************************************\n');
 tic;
 
 for ii=1:numel(input_frames)
-    assert( system( [MATCH_EXE, ' ', CONFIG_DIR, 'matcher_config.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
+    assert( system( [ENV_SET, MATCH_EXE, ' ', CONFIG_DIR, 'matcher_config.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
 end
 
 fprintf('***************************************************\n');
@@ -126,7 +128,7 @@ for ii=1:numel(input_frames)
 end
 fclose(fid);
 
-assert( system( [AUTOCAL_EXE, ' ', OUT_DIR,'/workspaces.txt'] ) == 0, 'component exited with non-zero return code');
+assert( system( [ENV_SET, AUTOCAL_EXE, ' ', OUT_DIR,'/workspaces.txt'] ) == 0, 'component exited with non-zero return code');
 
 %% 
 % Run WASS stereo
@@ -138,7 +140,7 @@ fprintf('***************************************************\n');
 tic;
 
 for ii=1:numel(input_frames)
-    assert( system( [STEREO_EXE, ' ', CONFIG_DIR, 'stereo_config.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
+    assert( system( [ENV_SET, STEREO_EXE, ' ', CONFIG_DIR, 'stereo_config.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
 end
 
 fprintf('***************************************************\n');
