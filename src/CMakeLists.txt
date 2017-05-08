@@ -106,6 +106,7 @@ OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
 OPTION( BUILD_WASS_MATCH   "Build wass_match executable" ON )
 OPTION( BUILD_WASS_AUTOCALIBRATE  "Build wass_autocalibrate executable" ON )
 OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
+OPTION( DISABLE_BOOST_LOG "Disable Boost Log subsystem" OFF )
 
 
 add_subdirectory( wass_lib )
@@ -149,4 +150,5 @@ MESSAGE( STATUS "CMAKE_BUILD_TYPE:           ${CMAKE_BUILD_TYPE} ")
 MESSAGE( STATUS "CMAKE_INSTALL_PREFIX:       ${CMAKE_INSTALL_PREFIX} ")
 MESSAGE( STATUS "OpenCV_VERSION:             ${OpenCV_VERSION} ")
 MESSAGE( STATUS "Boost_VERSION:              ${Boost_VERSION} ")
+MESSAGE( STATUS "DISABLE_BOOST_LOG:          ${DISABLE_BOOST_LOG} ")
 MESSAGE( STATUS "------------------------------------------------- ")

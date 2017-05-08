@@ -21,7 +21,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef _WASS_LOG_HPP_
 #define _WASS_LOG_HPP_
 
+#include <iostream>
 #include <fstream>
+
+#ifdef WASS_USE_BOOST_LOG
+
 #include <iomanip>
 #include <boost/log/core.hpp>
 #include <boost/log/trivial.hpp>
@@ -32,7 +36,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <boost/log/sinks/text_ostream_backend.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/core/null_deleter.hpp>
-
 
 #define LOG_SCOPE(name) BOOST_LOG_NAMED_SCOPE(name)
 #define LOG(a) BOOST_LOG_TRIVIAL(a)
@@ -69,6 +72,102 @@ namespace WASS
         core->add_sink(sink);
     }
 }
+
+#else
+
+namespace WASS
+{
+
+    struct NaiveLoggerProperties
+    {
+        std::string scope;
+        std::string severity;
+        std::ostream* outs;
+        NaiveLoggerProperties() : outs( 0 ) {}
+
+        static inline NaiveLoggerProperties& instance()
+        {
+            static NaiveLoggerProperties myself;
+            return myself;
+        }
+        static inline NaiveLoggerProperties& instance( std::string _severity )
+        {
+            NaiveLoggerProperties& prop = instance();
+            prop.severity = _severity;
+            return prop;
+        }
+    };
+
+    struct NaiveLogger
+    {
+        NaiveLoggerProperties prp;
+
+        inline void log_prefix()
+        {
+            std::cout << prp.scope << " [" << prp.severity << "] ";
+            if( prp.outs )
+                (*prp.outs) << prp.scope << " [" << prp.severity << "] ";
+        }
+
+        inline NaiveLogger( )
+        {
+            prp = NaiveLoggerProperties::instance();
+            log_prefix();
+        }
+
+        inline NaiveLogger( std::string _severity )
+        {
+            prp = NaiveLoggerProperties::instance( _severity );
+            log_prefix();
+        }
+
+        inline ~NaiveLogger() // Log suffix
+        {
+            std::cout << std::endl;
+            if( prp.outs )
+                (*prp.outs) << std::endl;
+        }
+
+        template< typename T >
+        NaiveLogger& operator<<( T in )
+        {
+
+            std::cout << in;
+            if( prp.outs )
+                (*prp.outs) << in;
+
+            return *this;
+        }
+
+        NaiveLogger& operator<<( std::ostream&(*pManip)(std::ostream&) )
+        {
+            (*pManip)( std::cout );
+
+            if( prp.outs )
+                (*pManip)( *prp.outs );
+
+            return *this;
+        }
+
+    };
+
+
+    inline void setup_logger( std::string logfilename = std::string() )
+    {
+        if( logfilename.length()>=1 )
+        {
+            NaiveLoggerProperties::instance().outs = new std::ofstream( logfilename.c_str() );
+        }
+    }
+}
+
+#define LOG_SCOPE(name) (WASS::NaiveLoggerProperties::instance().scope=std::string(name))
+#define LOG(a) WASS::NaiveLogger::instance(a)
+#define LOGI WASS::NaiveLogger("info ")
+#define LOGE WASS::NaiveLogger("error")
+#define LOGW WASS::NaiveLogger("warn ")
+
+#endif
 
 #endif
 
