@@ -47,7 +47,12 @@ endif()
 endif()
 
 
+if( DISABLE_BOOST_LOG )
+else()
 add_definitions(-DBOOST_LOG_DYN_LINK)
+add_definitions(-DWASS_USE_BOOST_LOG)
+endif()
+
 include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                      "../include/"
                      "../wass_lib"

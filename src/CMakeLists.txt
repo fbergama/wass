@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED( VERSION 3.1 )
 PROJECT( WASS )
 
-SET( WASS_VERSION_STR "1.1" )
+SET( WASS_VERSION_STR "1.2" )
 
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -65,7 +65,7 @@ IF( NOT Boost_INCLUDE_DIRS )
     set(Boost_USE_STATIC_RUNTIME OFF)
 	#set(Boost_DEBUG ON)
 	#set(Boost_DETAILED_FAILURE_MSG ON)
-    find_package(Boost 1.58.0 REQUIRED COMPONENTS log log_setup thread program_options system date_time filesystem )
+    find_package(Boost 1.58.0 REQUIRED COMPONENTS system log_setup log date_time thread program_options filesystem )
     IF( NOT Boost_FOUND )
         MESSAGE( FATAL_ERROR " Boost was not found. Please set BOOST_ROOT path variable")
     ENDIF()
@@ -73,13 +73,14 @@ ENDIF()
 
 # Configure file
 execute_process( COMMAND "git"  "describe" "--all" "--long" RESULT_VARIABLE COMMAND_RETURN_CODE OUTPUT_VARIABLE WASS_GIT_VERSION_STR ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE )
-MESSAGE( STATUS "Command result: ${COMMAND_RETURN_CODE}")
+#MESSAGE( STATUS "Command result: ${COMMAND_RETURN_CODE}")
 IF( ${COMMAND_RETURN_CODE} EQUAL 0 )
-    MESSAGE( STATUS "Version: ${WASS_GIT_VERSION_STR}")
     SET( WASS_VERSION_STR "${WASS_VERSION_STR}_${WASS_GIT_VERSION_STR}" )
 ELSE()
-    MESSAGE( STATUS "Setting default version")
+    MESSAGE( STATUS "No git repository detected, keeping the default version string")
 ENDIF()
+
+MESSAGE( STATUS "WASS generated version string: ${WASS_VERSION_STR}")
 
 SET( WASS_BUILD_ENV_STR "${CMAKE_SYSTEM} - ${CMAKE_CXX_COMPILER_ID}")
 
@@ -105,6 +106,7 @@ OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
 OPTION( BUILD_WASS_MATCH   "Build wass_match executable" ON )
 OPTION( BUILD_WASS_AUTOCALIBRATE  "Build wass_autocalibrate executable" ON )
 OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
+OPTION( DISABLE_BOOST_LOG "Disable Boost Log subsystem" OFF )
 
 
 add_subdirectory( wass_lib )
@@ -148,4 +150,5 @@ MESSAGE( STATUS "CMAKE_BUILD_TYPE:           ${CMAKE_BUILD_TYPE} ")
 MESSAGE( STATUS "CMAKE_INSTALL_PREFIX:       ${CMAKE_INSTALL_PREFIX} ")
 MESSAGE( STATUS "OpenCV_VERSION:             ${OpenCV_VERSION} ")
 MESSAGE( STATUS "Boost_VERSION:              ${Boost_VERSION} ")
+MESSAGE( STATUS "DISABLE_BOOST_LOG:          ${DISABLE_BOOST_LOG} ")
 MESSAGE( STATUS "------------------------------------------------- ")
