@@ -204,7 +204,7 @@ everything is working properly by [testing the pipeline](testing.html).
 
 # Windows
 
-WASS can be compiled on Windows with the latest Microsoft Visual Studio 2015
+WASS can be built from sources with the latest Microsoft Visual Studio 2015
 but requires a prior building of OpenCV, Boost C++ Libraries and
 [CLAPACK](http://www.netlib.org/clapack/).
 
@@ -225,5 +225,9 @@ and typing:
 node --version
 ```
 
-WASS should be installed and configured. You can proceed with [testing the pipeline](testing.html).
+Finally, install the [Visual C++ 2015 Redistributable
+x64](files/vc_redist.x64.exe).
+
+WASS should be now installed and configured. You can proceed with [testing the
+pipeline](testing.html).
 

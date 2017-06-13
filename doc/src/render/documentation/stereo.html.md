@@ -11,11 +11,11 @@ A proper configuration of the ```wass_stereo``` executable is a critical aspect
 to obtain a dense and accurate reconstruction from a stereo sequence. 
 
 The default configuration parameters have been tuned considering a stereo rig composed
-by 3 megapixel cameras placed side-by-side with parallel optical axis, placed at about 10m
+by 5 megapixel cameras placed side-by-side with parallel optical axis, placed at about 10m
 above the sea level and facing downward at about 20° with respect to the horizon. A different
 configuration is possible but will probably require an adjustment of the configuration parameters.
 
-In this page we describe in a step-by-step fashon how to tune such parameters to get
+In this page we describes step-by-step how to tune such parameters to get
 the best possible results.
 
 ## Step 1 - Create a new configuration file
