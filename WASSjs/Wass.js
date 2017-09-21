@@ -26,13 +26,13 @@ var dirscan = require("./dirscan.js");
 var Q = require('q');
 var fs = require('fs');
 var sprintf = require("sprintf-js").sprintf;
+var ioRedis = require('ioredis');
 
 
 
 
 
-
-var WASSjs_VERSION = "1.0";
+var WASSjs_VERSION = "1.2";
 
 console.log( "Welcome to Wass.js  - " + WASSjs_VERSION );
 console.log( "======================================================" );
@@ -48,35 +48,42 @@ process.on("exit", function() { console.log("Goodbye"); });
 
 // Load settings file
 var settings = undefined;
-try {
-    settings = require("./settings.json");
-    settings.pipeline_dir = utils.fix_path( settings.pipeline_dir );
-    console.log("Settings loaded.");
-    console.log("Pipeline directory: " + settings.pipeline_dir);
+function load_settings() {
+    try {
+        settings = require("./settings.json");
+        settings.pipeline_dir = utils.fix_path( settings.pipeline_dir );
+        console.log("Settings loaded.");
+        console.log("Pipeline directory: " + settings.pipeline_dir);
 
-} catch( err ) {
-    console.log("settings.json error: ");
-    console.log( err );
-    return -1;
+    } catch( err ) {
+        console.log("settings.json error: ");
+        console.log( err );
+        return -1;
+    }
 }
+load_settings();
 
 
 
 
 // Load worksession file
 var worksession = undefined;
-try {
-    worksession = require("./worksession.json");
-    worksession.cam0_datadir = utils.fix_path( worksession.cam0_datadir );
-    worksession.cam1_datadir = utils.fix_path( worksession.cam1_datadir );
-    worksession.confdir = utils.fix_path( worksession.confdir );
-    worksession.workdir = utils.fix_path( worksession.workdir );
+function load_default_worksession() {
+    try {
+        console.log("Loading default worksession file");
+        worksession = require("./worksession.json");
+        worksession.cam0_datadir = utils.fix_path( worksession.cam0_datadir );
+        worksession.cam1_datadir = utils.fix_path( worksession.cam1_datadir );
+        worksession.confdir = utils.fix_path( worksession.confdir );
+        worksession.workdir = utils.fix_path( worksession.workdir );
 
-} catch( err ) {
-    console.log("settings.json error: ");
-    console.log( err );
-    return -1;
+    } catch( err ) {
+        console.log("settings.json error: ");
+        console.log( err );
+        return -1;
+    }
 }
+load_default_worksession();
 
 
 
@@ -193,7 +200,7 @@ var prepare_data = function( worksession, mainq ) {
 var match = function( worksession, mainq ) {
 
     worksession.wdir_frames = load_wdirs(worksession);
-    
+
     var wdir_subset_indices = [];
     var wdir_indices = Object.keys(worksession.wdir_frames);
     var nframes = settings.num_frames_to_match > wdir_indices.length ? wdir_indices.length : settings.num_frames_to_match;
@@ -230,11 +237,11 @@ var load_extrinsics = function( worksession, mainq ) {
 
     worksession.wdir_frames = load_wdirs(worksession);
 
-    var extfileR = worksession.confdir + "/ext_R.xml"; 
+    var extfileR = worksession.confdir + "/ext_R.xml";
     if( !fs.existsSync(extfileR) ) {
         return extfileR + " not found.";
     }
-    var extfileT = worksession.confdir + "/ext_T.xml"; 
+    var extfileT = worksession.confdir + "/ext_T.xml";
     if( !fs.existsSync(extfileT) ) {
         return extfileT + " not found.";
     }
@@ -263,6 +270,10 @@ var dense = function( worksession, mainq ) {
             mainq.create( 'dense', {
                 title:('['+wdir+'] Dense stereo' ),
                 workspacename: wdir
+            }).on('remove',function(result) {
+                console.log("JOB REMOVED");
+            }).on('complete',function(result) {
+                console.log("JOB COMPLETE");
             }).save();
       }
     });
@@ -287,9 +298,11 @@ var save_worksession = function() {
     fs.writeFileSync( worksession.workdir + "/worksession.json", wsdata );
 }
 
+
 var load_worksession = function( workdir ) {
 
     var wsfile = workdir+"/worksession.json";
+    console.log(wsfile);
     if( fs.existsSync( wsfile ) ) {
         console.log("Loading " + wsfile);
         var wsdata = fs.readFileSync( wsfile );
@@ -298,12 +311,16 @@ var load_worksession = function( workdir ) {
             if( newws.workdir==workdir ) {
                 worksession = newws;
                 console.log("Worksession successfully loaded!");
+                return true;
             }
         } catch( error ) {
             console.log("JSON parse error: " + error );
         }
     }
+
+    return false;
 }
+
 
 Q.when( extexe_sanity_check(settings), function() {
 
@@ -312,13 +329,6 @@ Q.when( extexe_sanity_check(settings), function() {
 
     worksession.currstatus = "idle";
     worksession.total_jobs = 0;
-
-    var mainq = kue.createQueue();
-    var qlen = 0;
-    var numfailures = 0;
-    var start_time = Date.now();
-    var elapsed = Date.now() - start_time;
-
     worksession.completed_tasks = {
         prepare: false,
         match: false,
@@ -326,6 +336,12 @@ Q.when( extexe_sanity_check(settings), function() {
         extload: false,
         dense: false
     }
+    var start_time = Date.now();
+    var elapsed = Date.now() - start_time;
+
+    var mainq = kue.createQueue();
+    var qlen = 0;
+    var numfailures = 0;
 
     var reset_status = function() {
         worksession.currstatus = "idle";
@@ -359,7 +375,7 @@ Q.when( extexe_sanity_check(settings), function() {
     }
     var get_full_status = function() {
         var progress_c =  worksession.total_jobs-qlen;
-        var remaining = (elapsed*worksession.total_jobs/progress_c) - elapsed; 
+        var remaining = (elapsed*worksession.total_jobs/progress_c) - elapsed;
         return  {
             completed_tasks: worksession.completed_tasks,
             current_status: worksession.currstatus,
@@ -371,35 +387,24 @@ Q.when( extexe_sanity_check(settings), function() {
         };
     }
 
-    mainq.on('job enqueue', on_enqueue );
-    mainq.on('job failed',on_fail );
-    mainq.on('job complete',on_completed );
+    var start_workers = function() {
 
+        mainq = kue.createQueue();
 
-    var dstart = Q.defer();
-    var init_tasks = [ dstart.promise ];
-    ['prepare','match','matchmerge','extload','dense'].forEach( function( jobname ) {
-        init_tasks.push( utils.deactivate_all_active( jobname ) );
-        init_tasks.push( utils.remove_all_completed( jobname ) );
-        init_tasks.push( utils.remove_all_failed( jobname ) );
-        dstart.resolve();
-    });
-    dstart.resolve();
-
-    Q.when( Q.all( init_tasks ) , function() {
-
-        console.log("Queue initialization completed, setting up");
+        mainq.on('job enqueue', on_enqueue );
+        mainq.on('job failed',on_fail );
+        mainq.on('job complete',on_completed );
 
         /**
          * # Match job
-         * 
+         *
          *  Performs wass_match to recover
          *  rigid motion between each separate frames
          */
-        mainq.process('match', settings.match_parallel_jobs, function(job,done) {
+        mainq.process('match', settings.match_parallel_jobs, function(job,ctx,done) {
 
 
-            var matchtask = new RunTask.RunTask( settings.pipeline_dir+settings.matcher_exe, 
+            var matchtask = new RunTask.RunTask( settings.pipeline_dir+settings.matcher_exe,
                                                 [worksession.confdir+worksession.match_config_file,worksession.workdir+job.data.workspacename],
                                                 worksession.workdir+job.data.workspacename,
                                                 "matchlog.txt" );
@@ -407,11 +412,11 @@ Q.when( extexe_sanity_check(settings), function() {
             matchtask.start( function(code) {
                 if( code!==0 ) {
                     return done( new Error('Bad return code') );
-                } 
+                }
                 return done();
             }, function(err) {
                 return done( new Error(err) );
-            }, function(i,n) { 
+            }, function(i,n) {
                 job.progress(i,n);
             });
 
@@ -420,15 +425,51 @@ Q.when( extexe_sanity_check(settings), function() {
 
         /**
          * # Dense reconstruction job
-         * 
-         *  Performs wass_sterep on all the workspaces
+         *
+         *  Performs wass_stereo on all the workspaces
          */
-        mainq.process('dense', settings.stereo_parallel_jobs, function(job,done) {
+        mainq.process('dense', 1/*settings.stereo_parallel_jobs*/, function(job,ctx,done) {
 
+
+            /*
+            var redis = new ioRedis();
+
+            redis.subscribe('workstartpause', function (err, count) {
+                if( err!==null ) {
+                    console.log("Unable to subscribe: %s",err);
+                }
+            });
+
+            redis.on('message', function (channel, message) {
+                console.log('Receive message %s from channel %s', message, channel);
+                if( message === 'PAUSE' ) {
+                    console.log("Pausing worker");
+                    ctx.pause( 180000, function(err) {
+                        if( err!==null ) {
+                            console.log("Pause error: %s", err );
+                        }
+                        console.log("Paused!");
+                    });
+                }
+                if( message === 'RESUME' ) {
+                    console.log("Resuming worker");
+                    ctx.resume();
+                }
+            });
+            /**/
+            /**/
+            ctx.pause( 50000, function(err){
+                console.log("Worker is paused... ");
+                setTimeout( function(){ ctx.resume(); }, 5000 );
+            });
+            /**/
+
+            setTimeout( function() { console.log("DONE!"); done(); }, 2000 );
+            /*
             var workspacepath = worksession.workdir+job.data.workspacename;
             var workspace_num = parseInt( job.data.workspacename.slice(0,6));
             var config_file = worksession.confdir + worksession.dense_stereo_config_file;
-            var task = new RunTask.RunTask( settings.pipeline_dir+settings.stereo_exe, 
+            var task = new RunTask.RunTask( settings.pipeline_dir+settings.stereo_exe,
                                            [config_file, workspacepath],
                                            workspacepath,
                                            "densestereolog.txt" );
@@ -436,13 +477,14 @@ Q.when( extexe_sanity_check(settings), function() {
 
             task.start( function(code) {
                 if( code!==0 ) {
+                    console.log("DONE");
                     return done( new Error("Bad return code, check log") );
-                } 
+                }
 
                 // Delete source images if necessary
                 if( !worksession.keepimages && workspace_num > worksession.keep_images_end ) {
                     utils.deleteRecursive( workspacepath+"undistorted" );
-                } 
+                }
 
                 // Cleanup some disk space
                 if( worksession.savediskspace ) {
@@ -457,35 +499,40 @@ Q.when( extexe_sanity_check(settings), function() {
 
                 if( process.platform != 'win32' && worksession.zipoutput ) {
                     var full_workspace_name = job.data.workspacename.slice(0,9);
-                    
-                    var tartask = new RunTask.RunTask( "zip", 
+
+                    var tartask = new RunTask.RunTask( "zip",
                         ["-9", "-r", full_workspace_name+".zip", job.data.workspacename],
                         workspacepath+"../" );
 
                     tartask.start( function(code) {
                         utils.deleteRecursive( workspacepath );
-                        return done(); 
+                        console.log("DONE");
+                        return done();
                     }, function(err) {
+                        console.log("DONE");
                         done( new Error("ZIP error") );
                     });
 
                 }
 
-               return done();
+                console.log("DONE");
+                return done();
 
             }, function(err) {
+                console.log("DONE");
                 done( new Error(err) );
-            }, function(i,n) { 
+            }, function(i,n) {
                 job.progress(i,n);
-            }
-                      );
+            });
+                      */
         });
+
 
         /**
          * # Load extrinsic calibration job
-         * 
+         *
          */
-        mainq.process('extload', 1, function(job,done) {
+        mainq.process('extload', 1, function(job,ctx,done) {
 
             var workspacepath = worksession.workdir+job.data.workspacename;
             fs.writeFileSync( workspacepath+"/ext_R.xml",
@@ -496,28 +543,29 @@ Q.when( extexe_sanity_check(settings), function() {
             return done();
         });
 
+
         /**
          * # MatchMerge job
-         * 
+         *
          *  Performs wass_autocalibrate on all the workspaces
          *  to calibrate extrinsic camera parameters
          */
-        mainq.process('matchmerge', 1, function(job,done) {
+        mainq.process('matchmerge', 1, function(job,ctx,done) {
 
-            var task = new RunTask.RunTask( settings.pipeline_dir+settings.autocalibrate_exe, 
-                                            [job.data.workspacelistfile], 
+            var task = new RunTask.RunTask( settings.pipeline_dir+settings.autocalibrate_exe,
+                                            [job.data.workspacelistfile],
                                             worksession.workdir,
                                             "autocalibrate.txt" );
 
             task.start( function(code) {
                 if( code!==0 ) {
                     return done( new Error("Bad return code, check log") );
-                } 
-                return done(); 
+                }
+                return done();
 
             }, function(err) {
                 done( new Error(err) );
-            }, function(i,n) { 
+            }, function(i,n) {
                 job.progress(i,n);
             }
                       );
@@ -526,48 +574,67 @@ Q.when( extexe_sanity_check(settings), function() {
 
         /**
          * # Prepare job
-         * 
+         *
          *  Performs wass_prepare on the frames specified in
-         *  job.data.cam0file, job.data.cam1file 
+         *  job.data.cam0file, job.data.cam1file
          */
-        mainq.process('prepare', settings.prepare_parallel_jobs, function(job,done) {
+        mainq.process('prepare', settings.prepare_parallel_jobs, function(job,ctx,done) {
 
-            var workspacepath = worksession.workdir+job.data.workspacename; 
+            var workspacepath = worksession.workdir+job.data.workspacename;
             var logfile = sprintf("%06d.log", job.data.index);
             var args = [
                 "--workdir", workspacepath,
-                "--calibdir", worksession.confdir, 
-                "--c0", worksession.cam0_datadir+job.data.cam0file, 
+                "--calibdir", worksession.confdir,
+                "--c0", worksession.cam0_datadir+job.data.cam0file,
                 "--c1", worksession.cam1_datadir+job.data.cam1file
             ];
 
             // prepare the workspaces.txt file
-            var task = new RunTask.RunTask( settings.pipeline_dir+settings.prepare_exe, 
-                                            args, 
+            var task = new RunTask.RunTask( settings.pipeline_dir+settings.prepare_exe,
+                                            args,
                                             worksession.workdir,
                                             logfile );
 
             task.start( function(code) {
                 if( code!==0 ) {
                     return done( new Error("Bad return code, check log") );
-                } 
+                }
 
                 fs.unlink( worksession.workdir+logfile );
-                worksession.wdir_frames.push( job.data.workspacename ); 
+                worksession.wdir_frames.push( job.data.workspacename );
 
                 fs.appendFile( worksession.workdir+"/workspaces.txt", job.data.workspacename+"\n" );
 
-                return done(); 
+                return done();
 
             }, function(err) {
                 done( new Error(err) );
 
-            }, function(i,n) { 
+            }, function(i,n) {
                 job.progress(i,n);
             }
                       );
 
         });
+
+    }
+
+
+    var dstart = Q.defer();
+    var init_tasks = [ dstart.promise ];
+    ['prepare','match','matchmerge','extload','dense'].forEach( function( jobname ) {
+        init_tasks.push( utils.deactivate_all_active( jobname ) );
+        init_tasks.push( utils.remove_all_completed( jobname ) );
+        init_tasks.push( utils.remove_all_failed( jobname ) );
+        dstart.resolve();
+    });
+    //dstart.resolve();
+
+    Q.when( Q.all( init_tasks ) , function() {
+
+        console.log("Queue initialization completed, starting workers");
+
+        start_workers()
 
         // Start kue app to show progress
         var port = settings.http_port || 3000;
@@ -589,8 +656,28 @@ Q.when( extexe_sanity_check(settings), function() {
     Q.when( dbootstrap.promise, function() {
         console.log("Bootstrap completed.");
 
+
+        /*
+        setInterval( function() {
+
+            // Manually remove each completed jobs so that we can
+            // better track jobs completion even with faulty kue events
+            //
+            kue.Job.rangeByState( 'complete', 0, 10, 'asc', function( err, jobs ) {
+                console.log( JSON.stringify(jobs) );
+                if( !err )
+                    jobs.forEach( function( job ) {
+                        on_completed( job.id, null);
+                        job.remove( function(){
+                            //console.log( 'removed ', job.id );
+                        });
+                    });
+            });
+        },1000);
+        */
+
         //prepare_data( worksession, mainq );
-        //match(worksession,mainq); 
+        //match(worksession,mainq);
         //matchmerge(worksession,mainq);
         //dense( worksession,mainq );
         //
@@ -735,6 +822,52 @@ Q.when( extexe_sanity_check(settings), function() {
                 response.end();
                 return;
             }
+            else if( url.pathname === "/reloadworksession" ) {
+
+                response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
+                response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
+
+                var opstatus = { error: false, msg: ""};
+
+                if( worksession.currstatus == "idle" ) {
+                    load_default_worksession();
+                    opstatus.error = !load_worksession( worksession.workdir );
+                    opstatus.curr_worksession = worksession;
+                }
+
+                response.write( JSON.stringify( opstatus ) );
+                response.end();
+                return;
+            }
+            else if( url.pathname === "/pausequeue" ) {
+
+                response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
+                response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
+
+                var opstatus = { error: false, msg: ""};
+
+                var redis = new ioRedis();
+                redis.publish('workstartpause', 'PAUSE');
+
+
+                response.write( JSON.stringify( opstatus ) );
+                response.end();
+                return;
+            }
+            else if( url.pathname === "/resumequeue" ) {
+
+                response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
+                response.writeHead(200, {"Access-Control-Allow-Origin": "*"});
+
+                var opstatus = { error: false, msg: ""};
+
+                var redis = new ioRedis();
+                redis.publish('workstartpause', 'RESUME');
+
+                response.write( JSON.stringify( opstatus ) );
+                response.end();
+                return;
+            }
             else if(url.pathname === "/activejobs") {
                 Q.when(utils.get_active_jobs(worksession.currstatus), function (value) {
                     response.writeHead(200, {"Content-Type": "application/json; charset=UTF-8"});
@@ -749,13 +882,13 @@ Q.when( extexe_sanity_check(settings), function() {
                 });
                 return;
             } else {
-                // Get local filename and guess its content type based on its extension. 
+                // Get local filename and guess its content type based on its extension.
                 var resname = url.pathname.substring(1);
                 if( resname.length==0 )
                     resname = "index.html";
                 var filename = "WassMonitor/"+resname; // strip leading /
                 var type;
-                switch(filename.substring(filename.lastIndexOf(".")+1)) { // extension 
+                switch(filename.substring(filename.lastIndexOf(".")+1)) { // extension
                     case "html":
                         case "htm": type = "text/html; charset=UTF-8"; break;
                     case "js": type = "application/javascript; charset=UTF-8"; break;
@@ -767,24 +900,24 @@ Q.when( extexe_sanity_check(settings), function() {
                 }
 
                 // Read the file
-                // chunk to the callback function. For really large files, using the 
-                //  streaming API with fs.createReadStream() would be better. 
+                // chunk to the callback function. For really large files, using the
+                //  streaming API with fs.createReadStream() would be better.
                 fs.readFile(filename, function(err, content) {
                     //console.log("------- General request");
                     //console.log("Res: "+resname);
                     //console.log("File: " + filename);
                     //console.log("Type: " + type );
-                    if (err) { // If we couldn't read the file for some reason 
+                    if (err) { // If we couldn't read the file for some reason
                         response.writeHead(404, { // Send a 404 Not Found status
-                            "Content-Type": "text/plain; charset=UTF-8"}); 
-                            response.write(err.message); 
-                            console.log("Resource not found");
-                            response.end(); 
+                            "Content-Type": "text/plain; charset=UTF-8"});
+                            response.write(err.message);
+                            console.log("Resource not found: " + filename);
+                            response.end();
                     }
-                    else { 
-                        response.writeHead(200, {"Content-Type": type}); 
-                        response.write(content); 
-                        response.end(); 
+                    else {
+                        response.writeHead(200, {"Content-Type": type});
+                        response.write(content);
+                        response.end();
                         //console.log("Resource served!");
                     }
                     //console.log("-------");

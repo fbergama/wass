@@ -6,7 +6,7 @@
     "stereo_exe": "wass_stereo",
     "http_port": 3000,
     "num_frames_to_match": 50,
-    "prepare_parallel_jobs": 7,
-    "match_parallel_jobs": 7,
-    "stereo_parallel_jobs": 7
+    "prepare_parallel_jobs": 2,
+    "match_parallel_jobs": 2,
+    "stereo_parallel_jobs": 3
 }
