@@ -26,6 +26,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/optflow.hpp>
 
 #include "incfg.hpp"
 #include "wassglobal.hpp"
@@ -811,6 +812,8 @@ size_t triangulate( StereoMatchEnv& env )
     cv::Matx34d Pc1 = env.P1;
     cv::Mat dbg_P0 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
     cv::Mat dbg_P1 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
+    cv::Mat dbg_R0 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
+    cv::Mat dbg_R1 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
 
 #endif
 
@@ -905,6 +908,8 @@ size_t triangulate( StereoMatchEnv& env )
                 StereoMatch::Render::show_image( render_stereo(left_debug,right_debug), 0.3);
                 //continue;
 #endif
+                dbg_R0.at<unsigned char>( yr_i,xr ) = env.right_rectified.at<unsigned char>(yr_i,xr);
+                dbg_R1.at<unsigned char>( yr_i,xr ) = env.left_rectified.at<unsigned char>( std::floor(yl+0.5), std::floor(xl+0.5) );
 
                 cv::Vec2d pi = env.unrectify( cv::Vec2d(xl,yl), true );
                 cv::Vec2d qi = env.unrectify( cv::Vec2d(xr,yr_i), false );
@@ -989,11 +994,11 @@ size_t triangulate( StereoMatchEnv& env )
 #if ENABLED(PLOT_3D_REPROJECTION)
                 {
                     cv::Vec3d p3d_reproj3 = Pc0*cv::Vec4d( p3d(0),p3d(1),p3d(2),1 );
-                    dbg_P0.at<unsigned char>( p3d_reproj3(1)/p3d_reproj3(2), p3d_reproj3(0)/p3d_reproj3(2) ) = (R+G+B)/3;
+                    dbg_P0.at<unsigned char>( std::floor( p3d_reproj3(1)/p3d_reproj3(2) +0.5 ), std::floor(p3d_reproj3(0)/p3d_reproj3(2)+0.5) ) = (R+G+B)/3;
                 }
                 {
                     cv::Vec3d p3d_reproj3 = Pc1*cv::Vec4d( p3d(0),p3d(1),p3d(2),1 );
-                    dbg_P1.at<unsigned char>( p3d_reproj3(1)/p3d_reproj3(2), p3d_reproj3(0)/p3d_reproj3(2) ) = (R+G+B)/3;
+                    dbg_P1.at<unsigned char>( std::floor( p3d_reproj3(1)/p3d_reproj3(2) + 0.5), std::floor(p3d_reproj3(0)/p3d_reproj3(2)+0.5) ) = (R+G+B)/3;
                 }
 #endif
 
@@ -1017,6 +1022,9 @@ size_t triangulate( StereoMatchEnv& env )
 #if ENABLED(PLOT_3D_REPROJECTION)
     cv::imwrite( (env.workdir/"/undistorted/00000000_P0.png").string(), dbg_P0 );
     cv::imwrite( (env.workdir/"/undistorted/00000001_P1.png").string(), dbg_P1 );
+
+    cv::imwrite( (env.workdir/"/undistorted/R0.png").string(), dbg_R0 );
+    cv::imwrite( (env.workdir/"/undistorted/R1.png").string(), dbg_R1 );
 #endif
 
     return n_pts_triangulated;
@@ -1178,22 +1186,74 @@ bool compute_flow( StereoMatchEnv& env )
 
     cv::Mat left_warp;
     cv::warpPerspective( env.left, left_warp, H, cv::Size( env.left.cols, env.left.rows) );
-    cv::imwrite( (env.workdir/"flow_00_left_warp.png").string(), left_warp );
-    cv::imwrite( (env.workdir/"flow_01_left.png").string(), env.left );
-    cv::imwrite( (env.workdir/"flow_02_right.png").string(), env.right );
+    cv::imwrite( (env.workdir/"flow_00_left.png").string(), env.left );
+    cv::imwrite( (env.workdir/"flow_01_right.png").string(), env.right );
+    cv::imwrite( (env.workdir/"flow_03_left_warp.png").string(), left_warp );
 
 
-    // Left-warp and right are now coarsly matched
-    //
-    cv::Ptr< cv::FarnebackOpticalFlow > flow_alg = cv::FarnebackOpticalFlow::create();
-    cv::Mat flow;
-    LOGI << "Computing flow...";
-    flow_alg->calc( env.right, left_warp, flow ); // flow moving pixels from right to left
+    cv::Rect croprect( cv::Point(0,0), cv::Point(left_warp.cols,left_warp.rows) );
+
+    /*
+       flow_alg->setFlags( cv::OPTFLOW_FARNEBACK_GAUSSIAN );
+    */
+    cv::Mat flow = cv::Mat::ones(env.right.rows, env.right.cols, CV_32FC2 )*1000;
+    LOGI << "Computing initial flow...";
+    const double initial_flow_scale_factor=0.2;
+    {
+        cv::Ptr< cv::FarnebackOpticalFlow > flow_alg = cv::FarnebackOpticalFlow::create();
+        flow_alg->setNumLevels(1);
+        flow_alg->setNumIters(500);
+        flow_alg->setPolyN(5);
+        flow_alg->setPolySigma(0.2);
+
+        cv::Mat A = env.right(croprect).clone();
+        cv::Mat B = left_warp(croprect).clone();
+        cv::resize(A,A,cv::Size(),initial_flow_scale_factor,initial_flow_scale_factor);
+        cv::resize(B,B,cv::Size(),initial_flow_scale_factor,initial_flow_scale_factor);
+        cv::imwrite( (env.workdir/"A.png").string(), A );
+        cv::imwrite( (env.workdir/"B.png").string(), B );
+        cv::Mat F;
+        flow_alg->calc( A, B, F ); // flow moving pixels from right to left
+        LOGI << "Done";
+        cv::blur( F,F,cv::Size(3,3));
+        cv::Mat ffull;
+        cv::resize(F,ffull,croprect.size() );
+        flow(croprect) = ffull.clone()*(1.0/initial_flow_scale_factor);
+
+        cv::Mat flow_render;
+        drawOpticalFlow( flow, flow_render, 50 );
+        cv::imwrite( (env.workdir/"flow_initial.png").string(), flow_render );
+    }
+
+    LOGI << "Computing high-res flow via Variational Refinement...";
+    cv::Ptr< cv::optflow::VariationalRefinement > flow_ref = cv::optflow::createVariationalFlowRefinement();
+    flow_ref->setDelta(50); // Color consistency
+    flow_ref->setGamma(50); // Gradient consistency
+    flow_ref->setFixedPointIterations(300);
+
+    LOGI << "   Color consistency factor (delta):" << flow_ref->getDelta();
+    LOGI << "Gradient consistency factor (gamma):" << flow_ref->getGamma();
+    LOGI << "          Smoothness factor (alpha):" << flow_ref->getAlpha();
+    LOGI << "                  Num of iterations:" << flow_ref->getFixedPointIterations();
+    flow_ref->calc( env.right(croprect), left_warp(croprect), flow(croprect) );
     LOGI << "Done";
+
+#if 0
+    LOGI << "Computing flow (TVL1)...";
+    cv::Ptr< cv::DualTVL1OpticalFlow > flow_alg2 = cv::DualTVL1OpticalFlow::create();
+    flow_alg2->setUseInitialFlow(true);
+    flow_alg2->setScalesNumber(1);
+    flow_alg2->setMedianFiltering(1);
+    flow_alg2->setOuterIterations(10);
+    //flow_alg2->setLambda(0.01);
+    //flow_alg2->setLambda();
+    flow_alg2->calc( env.right(croprect), left_warp(croprect), flow(croprect) ); // flow moving pixels from right to left
+    LOGI << "Done";
+#endif
 
     cv::Mat flow_render;
     drawOpticalFlow( flow, flow_render, 50 );
-    cv::imwrite( (env.workdir/"a00flow.png").string(), flow_render );
+    cv::imwrite( (env.workdir/"flow.png").string(), flow_render );
 
 
     std::vector< cv::Point2f > good_pts_0;
@@ -1214,7 +1274,7 @@ bool compute_flow( StereoMatchEnv& env )
         {
             cv::Vec2f pxfl = flow.at< cv::Vec2f >(i,j);
 
-            if( isFlowCorrect(pxfl) && cv::norm( pxfl ) < 50 )
+            if( isFlowCorrect(pxfl) && cv::norm( pxfl ) < 150  )
             {
                 cv::Vec2f fl_a = pxfl + cv::Vec2f(j,i);
                 cv::Vec3f left_pt = Hinv * cv::Vec3f( fl_a[0], fl_a[1], 1.0 );
@@ -1255,7 +1315,7 @@ bool compute_flow( StereoMatchEnv& env )
     //cv::Mat remapped;
     //cv::remap(left_warp,remapped,flow_absolute,cv::Mat(),CV_INTER_LINEAR );
     //cv::imwrite( (env.workdir/"flow_03_left_remapped.png").string(), remapped );
-    cv::imwrite( (env.workdir/"flow_04_left_remapped.png").string(), remap_dbg );
+    cv::imwrite( (env.workdir/"flow_02_left_remapped.png").string(), remap_dbg );
 
     LOGI << "Triangulating " << r_pts.size() << " points..";
     cv::Mat pt3D;
