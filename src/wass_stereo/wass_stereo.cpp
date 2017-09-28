@@ -37,6 +37,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "PovMesh.h"
 #include "render.hpp"
 #include "triangulate.hpp"
+#include "nanoflann.hpp"
 
 
 
@@ -62,6 +63,9 @@ INCFG_REQUIRE( bool, SAVE_AS_PLY, false, "Save final reconstructed point cloud a
 INCFG_REQUIRE( bool, SAVE_COMPRESSED, true, "Save in 16-bit compressed format" )
 
 INCFG_REQUIRE( bool, USE_OPTICAL_FLOW, false, "Use optical flow for 3D reconstruction (experimental)" )
+INCFG_REQUIRE( int, FLOW_REFINEMENT_ITERATIONS, 5, "Number of iterations for flow refinement" )
+INCFG_REQUIRE( int, FLOW_OPENING_DILATE, 1, "Dilate steps in flow mask" )
+INCFG_REQUIRE( int, FLOW_OPENING_ERODE, 1, "Erode steps in flow mask" )
 
 /*
  *  Compile-time feature set utilities
@@ -90,6 +94,72 @@ INCFG_REQUIRE( bool, USE_OPTICAL_FLOW, false, "Use optical flow for 3D reconstru
 #else
 #define FIRSTROW (env.roi_comb_right.y)
 #endif
+
+
+
+using namespace nanoflann;
+
+template <typename T>
+struct PointCloud
+{
+    struct Point
+    {
+        T  x,y;
+        cv::Vec2f flow;
+    };
+
+    std::vector<Point>  pts;
+
+    // Must return the number of data points
+    inline size_t kdtree_get_point_count() const { return pts.size(); }
+
+    // Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
+    inline T kdtree_distance(const T *p1, const size_t idx_p2, size_t size) const
+    {
+        const T d0=p1[0]-pts[idx_p2].x;
+        const T d1=p1[1]-pts[idx_p2].y;
+        
+        if( size==1 )
+            return d0*d0;
+
+        return d0*d0+d1*d1;
+    }
+
+    // Returns the dim'th component of the idx'th point in the class:
+    // Since this is inlined and the "dim" argument is typically an immediate value, the
+    //  "if/else's" are actually solved at compile time.
+    inline T kdtree_get_pt(const size_t idx, int dim) const
+    {
+        if (dim==0) return pts[idx].x;
+        else return pts[idx].y;
+    }
+
+    // Optional bounding-box computation: return false to default to a standard bbox computation loop.
+    //   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
+    //   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
+    template <class BBOX>
+    bool kdtree_get_bbox(BBOX &bb) const { return false; }
+};
+
+
+typedef KDTreeSingleIndexAdaptor< L2_Simple_Adaptor< float, PointCloud<float> > ,
+                                  PointCloud< float >,
+                                  2  
+                                  > my_kd_tree_t;
+
+
+class KDTreeImpl
+{
+public: 
+    KDTreeImpl() : tree( 2, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */) )
+    {
+    
+    }
+    PointCloud<float> cloud;
+    my_kd_tree_t tree;
+};
+
+
 
 
 cv::Mat stack_matrices( const cv::Mat& R, const cv::Mat& T )
@@ -163,6 +233,8 @@ struct StereoMatchEnv
 
     // Stereo data
     cv::Mat disparity;
+    class KDTreeImpl *pKDT_coarse_flow;
+    cv::Mat coarse_flow_mask;
     double disparity_compensation;
 
 
@@ -801,6 +873,9 @@ size_t triangulate( StereoMatchEnv& env )
         bbox_botright = cv::Vec2d(INCFG_GET(TRIANG_BBOX_RIGHT), INCFG_GET(TRIANG_BBOX_BOTTOM) );
     }
 
+    env.pKDT_coarse_flow = new KDTreeImpl();
+    env.coarse_flow_mask = cv::Mat::zeros( env.right.rows, env.right.cols, CV_32FC1 );
+
     const int min_disp=1;
     size_t n_pts_triangulated = 0;
     env.mesh.reset( new PovMesh(env.roi_comb_right.width, env.roi_comb_right.height ) );
@@ -914,12 +989,14 @@ size_t triangulate( StereoMatchEnv& env )
                 cv::Vec2d pi = env.unrectify( cv::Vec2d(xl,yl), true );
                 cv::Vec2d qi = env.unrectify( cv::Vec2d(xr,yr_i), false );
 
+
                 cv::Vec2d p( (pi[0]-env.intrinsics_left.at<double>(0,2)) / env.intrinsics_left.at<double>(0,0), (pi[1]-env.intrinsics_left.at<double>(1,2)) / env.intrinsics_left.at<double>(1,1) );
                 cv::Vec2d q( (qi[0]-env.intrinsics_right.at<double>(0,2)) / env.intrinsics_right.at<double>(0,0),(qi[1]-env.intrinsics_right.at<double>(1,2)) / env.intrinsics_right.at<double>(1,1));
 
                 if( pi[0] <= bbox_topleft[0]  || pi[1] <=bbox_topleft[1] ||
                     pi[0] >= bbox_botright[0] || pi[1] >=bbox_botright[1] )
                     continue;
+
 
                 // Angle check
                 if( min_angle > 0 )
@@ -932,6 +1009,15 @@ size_t triangulate( StereoMatchEnv& env )
                         continue;
                     }
                 }
+
+                //env.coarse_flow.at<cv::Vec2f>( std::floor( qi[1] + 0.5 ), std::floor( qi[0]+0.5 ) ) = (pi-qi);
+                PointCloud<float>::Point newpoint;
+                newpoint.x = std::floor( qi[0]+0.5f );
+                newpoint.y = std::floor( qi[1]+0.5f );
+                newpoint.flow = (pi-qi);
+                env.pKDT_coarse_flow->cloud.pts.push_back( newpoint );
+
+                env.coarse_flow_mask.at<float>( std::floor( qi[1] + 0.5 ), std::floor( qi[0]+0.5 ) ) = 1.0f;
 
 #if ENABLED(ITERATIVE_TRIANGULATION)
                 cv::Vec3d p3d = IterativeLinearLSTriangulation(cv::Point3d(p[0],p[1],p[2]),PP0,cv::Point3d(q[0],q[1],q[2]),PP1);
@@ -1144,6 +1230,207 @@ static void drawOpticalFlow(const cv::Mat_<cv::Point2f>& flow, cv::Mat& dst, flo
     }
 }
 
+bool refine_flow( StereoMatchEnv& env )
+{
+    cv::imwrite( (env.workdir/"flow_00_left.png").string(), env.left );
+    cv::imwrite( (env.workdir/"flow_01_right.png").string(), env.right );
+
+    cv::Mat flow = cv::Mat::zeros( env.right.rows, env.right.cols, CV_32FC2 );
+
+    cv::Mat mask_opened = cv::Mat::ones( env.right.rows, env.right.cols, CV_32FC1);
+    cv::dilate(env.coarse_flow_mask,mask_opened,cv::Mat(),cv::Point(-1,-1), INCFG_GET(FLOW_OPENING_DILATE) );
+    cv::erode(mask_opened.clone(),mask_opened,cv::Mat(),cv::Point(-1,-1), INCFG_GET(FLOW_OPENING_ERODE) );
+
+    {
+        LOGI << "Building flow field index";
+        env.pKDT_coarse_flow->tree.buildIndex();
+
+        LOGI << "Interpolating flow field";
+
+        for( int y=0; y<flow.rows; ++y )
+        {
+            for( int x=0; x<flow.cols; ++x )
+            {
+                float query_pt[2] = { (float)x, (float)y };
+                const size_t num_results = 9;
+                std::vector<size_t>   ret_index(num_results);
+                std::vector<float> out_dist_sqr(num_results);
+                env.pKDT_coarse_flow->tree.knnSearch(&query_pt[0], num_results, &ret_index[0], &out_dist_sqr[0]);
+
+                cv::Vec2d fval=0;
+                double wsum = 0;
+                for( int IDX=0; IDX<num_results; ++IDX )
+                {
+                    const double dist = out_dist_sqr[IDX];
+                    if( dist<1E-5 ) 
+                    {
+                        fval = env.pKDT_coarse_flow->cloud.pts[ ret_index[IDX] ].flow;
+                        wsum = 1.0f;
+                        break;
+                    }
+
+                    fval += env.pKDT_coarse_flow->cloud.pts[ ret_index[IDX] ].flow / dist;
+                    wsum += (1.0f/dist);
+                }
+
+                flow.at< cv::Vec2f >( y,x ) = fval/wsum;
+            }
+        }
+
+    }
+
+    cv::Mat flow_render;
+    drawOpticalFlow( flow, flow_render, 200 );
+    cv::imwrite( (env.workdir/"flow_coarse.png").string(), flow_render );
+
+#if 0
+    {
+        LOGI << "Interpolating missing flow data";
+
+        std::vector< cv::Mat > flow_uv;
+        cv::split( flow, flow_uv );
+
+        cv::Mat original_flow_u = flow_uv[0].clone();
+        cv::Mat original_flow_v = flow_uv[1].clone();
+
+        cv::resize( original_flow_u, original_flow_u, cv::Size(), 0.25,0.25 );
+        cv::resize( original_flow_v, original_flow_v, cv::Size(), 0.25,0.25 );
+        cv::resize( flow_uv[0], flow_uv[0], cv::Size(), 0.25,0.25 );
+        cv::resize( flow_uv[1], flow_uv[1], cv::Size(), 0.25,0.25 );
+
+        cv::Mat coarse_mask_resized;
+        cv::resize( env.coarse_flow_mask, coarse_mask_resized, cv::Size(), 0.25,0.25 );
+
+        cv::Mat aux;
+        for( int i=0; i<1000; ++i )
+        {
+            cv::blur(flow_uv[0],aux,cv::Size(3,3));
+            flow_uv[0] = aux.mul(1-coarse_mask_resized) + original_flow_u.mul(coarse_mask_resized);
+
+            cv::blur(flow_uv[1],aux,cv::Size(3,3));
+            flow_uv[1] = aux.mul(1-coarse_mask_resized) + original_flow_v.mul(coarse_mask_resized);
+        }
+
+        cv::resize( flow_uv[0], flow_uv[0], cv::Size(), 4,4 );
+        cv::resize( flow_uv[1], flow_uv[1], cv::Size(), 4,4 );
+        /*
+        cv::Mat mask_opened;
+        cv::dilate(env.coarse_flow_mask,mask_opened,cv::Mat(),cv::Point(-1,-1),3);
+        cv::erode(mask_opened.clone(),mask_opened,cv::Mat(),cv::Point(-1,-1),4);
+        aux = aux+10000;
+        flow_uv[0] = aux.mul(1-mask_opened) + flow_uv[0].mul(mask_opened);
+        flow_uv[1] = aux.mul(1-mask_opened) + flow_uv[1].mul(mask_opened);
+        */
+        cv::merge( flow_uv,flow );
+    }
+#endif
+
+#if 1
+    LOGI << "Computing high-res flow via Variational Refinement...";
+    cv::Ptr< cv::optflow::VariationalRefinement > flow_ref = cv::optflow::createVariationalFlowRefinement();
+    flow_ref->setDelta(40); // Color consistency
+    flow_ref->setGamma(50); // Gradient consistency
+    flow_ref->setAlpha(170); // Smoothness
+    flow_ref->setFixedPointIterations( INCFG_GET(FLOW_REFINEMENT_ITERATIONS) );
+
+    LOGI << "   Color consistency factor (delta):" << flow_ref->getDelta();
+    LOGI << "Gradient consistency factor (gamma):" << flow_ref->getGamma();
+    LOGI << "          Smoothness factor (alpha):" << flow_ref->getAlpha();
+    LOGI << "                  Num of iterations:" << flow_ref->getFixedPointIterations();
+    flow_ref->calc( env.right, env.left, flow );
+    LOGI << "Done";
+#endif
+
+    drawOpticalFlow( flow, flow_render, 200 );
+    cv::imwrite( (env.workdir/"flow.png").string(), flow_render );
+
+    std::vector< cv::Point2f > good_pts_0;
+    std::vector< cv::Point2f > good_pts_1;
+
+    cv::Mat flow_absolute = cv::Mat::zeros( flow.rows,flow.cols, CV_32FC2);
+
+    std::vector< cv::Point2d > r_pts;
+    std::vector< cv::Point2d > l_pts;
+
+    cv::Mat remap_dbg = cv::Mat::zeros( env.left.rows, env.left.cols, CV_8UC1 );
+
+    for( int i=0; i<flow.rows; ++i )
+    {
+        for( int j=0; j<flow.cols; ++j )
+        {
+            cv::Vec2f pxfl = flow.at< cv::Vec2f >(i,j);
+
+            if( isFlowCorrect(pxfl) && cv::norm( pxfl ) < env.left.cols/2 && mask_opened.at<float>(i,j)>0 )
+            {
+                cv::Vec2f fl_a = pxfl + cv::Vec2f(j,i);
+                cv::Vec3f left_pt = cv::Vec3f( fl_a[0], fl_a[1], 1.0 );
+                left_pt = left_pt / left_pt[2];
+
+                if( left_pt[0]>0 && left_pt[0]<env.left.cols && left_pt[1]>0 && left_pt[1]<env.left.rows )
+                {
+                    unsigned char col_l = env.left.at<unsigned char>( std::floor(left_pt[1]+0.5), std::floor( left_pt[0]+0.5)  );
+                    unsigned char col_r = env.right.at<unsigned char>(i,j);
+                    if( col_l > 0 && col_r > 0 )
+                    {
+                        flow_absolute.at< cv::Vec2f >(i,j) = fl_a;
+                        r_pts.push_back( cv::Point2d( j,i ) );
+                        l_pts.push_back( cv::Point2d( left_pt[0], left_pt[1]) );
+
+                        remap_dbg.at<unsigned char>(i,j)=col_l;
+#if ENABLED(DEBUG_CORRESPONDENCES)
+                        {
+                            cv::Mat left_debug;
+                            cv::Mat right_debug;
+                            cv::cvtColor(env.left.clone(),left_debug, CV_GRAY2RGB);
+                            cv::cvtColor(env.right.clone(),right_debug, CV_GRAY2RGB);
+
+                            cv::circle( left_debug, l_pts.back() ,10,CV_RGB(255,0,0), 3 );
+                            cv::circle( right_debug, r_pts.back() ,10,CV_RGB(255,0,0), 3 );
+
+                            WASS::Render::show_image(  WASS::Render::render_stereo(left_debug,right_debug), 0.3);
+                            //continue;
+                        }
+#endif
+                    }
+                }
+            }
+        }
+    }
+
+
+    //cv::Mat remapped;
+    //cv::remap(left_warp,remapped,flow_absolute,cv::Mat(),CV_INTER_LINEAR );
+    //cv::imwrite( (env.workdir/"flow_03_left_remapped.png").string(), remapped );
+    cv::imwrite( (env.workdir/"flow_02_left_remapped.png").string(), remap_dbg );
+
+    LOGI << "Triangulating " << r_pts.size() << " points..";
+    cv::Mat pt3D;
+    cv::triangulatePoints( env.P0, env.P1, cv::Mat( l_pts ), cv::Mat( r_pts ), pt3D );
+
+
+    env.mesh.reset( new PovMesh(env.right.cols, env.right.rows ) );
+    for( size_t kk=0; kk<r_pts.size(); ++kk )
+    {
+        const cv::Point2d& rpt = r_pts[kk];
+        const cv::Point2d& lpt = l_pts[kk];
+        cv::Vec4d pt = pt3D.col( kk );
+
+        pt = pt / pt[3];
+        unsigned char R = env.right.at<unsigned char>( rpt.y, rpt.x );
+        //unsigned char Rl = env.left.at<unsigned char>( std::floor(lpt.y+0.5), std::floor(rpt.x+0.5) );
+
+        if( pt[2]<1.0 || pt[2]>100 )
+            continue;
+
+        env.mesh->set_point( rpt.x, rpt.y, cv::Vec3d( pt[0],pt[1],pt[2] ), R,R,R );
+    }
+
+    env.mesh->save_as_ply_points( (env.workdir/"/mesh_full_flow.ply").string() );
+
+    return true;
+}
+
+
 bool compute_flow( StereoMatchEnv& env )
 {
     // Compute a coarse initial alignment using matches
@@ -1151,38 +1438,51 @@ bool compute_flow( StereoMatchEnv& env )
     //
     //
     //
-
     std::vector< cv::Point2d > pts_0;
     std::vector< cv::Point2d > pts_1;
+    cv::Mat H;
+    const float invalid_flow = 1000;
 
-    // Load matches
-    std::ifstream ifs( ((env.workdir)/"matches.txt").string().c_str() );
-    if( !ifs.is_open() )
+    if( boost::filesystem::exists( env.workdir/"H.xml" ) )
     {
-        LOGE << "Unable to load matches from " << (env.workdir)/"matches.txt" << ", skipping";
-        return false;
+        H = WASS::load_matrix( env.workdir/"H.xml" );
+        if( H.rows!=3 || H.cols!=3 )
+        {
+            LOGE << "Unable to load H.xml, aborting";
+            return false;
+        }
     }
-    size_t n_matches;
-    ifs >> n_matches;
-
-    for( size_t k=0; k<n_matches; ++k )
+    else
     {
-        cv::Vec2d p0;
-        cv::Vec2d p1;
-        ifs >> p0[0];
-        ifs >> p0[1];
-        ifs >> p1[0];
-        ifs >> p1[1];
+        // Load matches
+        std::ifstream ifs( ((env.workdir)/"matches.txt").string().c_str() );
+        if( !ifs.is_open() )
+        {
+            LOGE << "Unable to load matches from " << (env.workdir)/"matches.txt" << ", skipping";
+            return false;
+        }
+        size_t n_matches;
+        ifs >> n_matches;
 
-        pts_0.push_back( cv::Point2d(p0[0],p0[1]) );
-        pts_1.push_back( cv::Point2d(p1[0],p1[1]) );
+        for( size_t k=0; k<n_matches; ++k )
+        {
+            cv::Vec2d p0;
+            cv::Vec2d p1;
+            ifs >> p0[0];
+            ifs >> p0[1];
+            ifs >> p1[0];
+            ifs >> p1[1];
+
+            pts_0.push_back( cv::Point2d(p0[0],p0[1]) );
+            pts_1.push_back( cv::Point2d(p1[0],p1[1]) );
+        }
+
+        LOGI << n_matches << " matches loaded";
+        H = cv::findHomography( pts_0, pts_1 );
+
+        LOGI << "Homography estimated: " << H;
+        LOGI << "Homography determinant: " << cv::determinant( H );
     }
-
-    LOGI << n_matches << " matches loaded";
-    cv::Mat H = cv::findHomography( pts_0, pts_1 );
-
-    LOGI << "Homography estimated: " << H;
-    LOGI << "Homography determinant: " << cv::determinant( H );
 
     cv::Mat left_warp;
     cv::warpPerspective( env.left, left_warp, H, cv::Size( env.left.cols, env.left.rows) );
@@ -1191,20 +1491,22 @@ bool compute_flow( StereoMatchEnv& env )
     cv::imwrite( (env.workdir/"flow_03_left_warp.png").string(), left_warp );
 
 
-    cv::Rect croprect( cv::Point(0,0), cv::Point(left_warp.cols,left_warp.rows) );
+    //cv::Rect croprect( cv::Point(695,110), cv::Point(left_warp.cols-10,left_warp.rows-10) );
+    cv::Rect croprect( cv::Point(0,0), cv::Point(left_warp.cols-1,left_warp.rows-1) );
 
-    /*
-       flow_alg->setFlags( cv::OPTFLOW_FARNEBACK_GAUSSIAN );
-    */
-    cv::Mat flow = cv::Mat::ones(env.right.rows, env.right.cols, CV_32FC2 )*1000;
+
+    cv::Mat flow = cv::Mat::ones(env.right.rows, env.right.cols, CV_32FC2 )*invalid_flow;
     LOGI << "Computing initial flow...";
-    const double initial_flow_scale_factor=0.2;
+    const double initial_flow_scale_factor=1.0;
+    const int blur_k_size=3;
     {
         cv::Ptr< cv::FarnebackOpticalFlow > flow_alg = cv::FarnebackOpticalFlow::create();
+        /*
         flow_alg->setNumLevels(1);
         flow_alg->setNumIters(500);
         flow_alg->setPolyN(5);
-        flow_alg->setPolySigma(0.2);
+        flow_alg->setPolySigma(1.0);
+        */
 
         cv::Mat A = env.right(croprect).clone();
         cv::Mat B = left_warp(croprect).clone();
@@ -1215,21 +1517,33 @@ bool compute_flow( StereoMatchEnv& env )
         cv::Mat F;
         flow_alg->calc( A, B, F ); // flow moving pixels from right to left
         LOGI << "Done";
-        cv::blur( F,F,cv::Size(3,3));
         cv::Mat ffull;
         cv::resize(F,ffull,croprect.size() );
         flow(croprect) = ffull.clone()*(1.0/initial_flow_scale_factor);
+        cv::blur( flow(croprect),flow(croprect),cv::Size(blur_k_size,blur_k_size));
+
+        croprect.x += blur_k_size/2;
+        croprect.y += blur_k_size/2;
+        croprect.width = croprect.width - blur_k_size;
+        croprect.height = croprect.height - blur_k_size;
+
+
+        cv::Mat aux = flow.clone();
+        flow = invalid_flow;
+        aux(croprect).copyTo(flow(croprect));
 
         cv::Mat flow_render;
         drawOpticalFlow( flow, flow_render, 50 );
         cv::imwrite( (env.workdir/"flow_initial.png").string(), flow_render );
     }
 
+#if 0
     LOGI << "Computing high-res flow via Variational Refinement...";
     cv::Ptr< cv::optflow::VariationalRefinement > flow_ref = cv::optflow::createVariationalFlowRefinement();
     flow_ref->setDelta(50); // Color consistency
     flow_ref->setGamma(50); // Gradient consistency
-    flow_ref->setFixedPointIterations(300);
+    flow_ref->setAlpha(70); // Smoothness
+    flow_ref->setFixedPointIterations(500);
 
     LOGI << "   Color consistency factor (delta):" << flow_ref->getDelta();
     LOGI << "Gradient consistency factor (gamma):" << flow_ref->getGamma();
@@ -1237,6 +1551,7 @@ bool compute_flow( StereoMatchEnv& env )
     LOGI << "                  Num of iterations:" << flow_ref->getFixedPointIterations();
     flow_ref->calc( env.right(croprect), left_warp(croprect), flow(croprect) );
     LOGI << "Done";
+#endif
 
 #if 0
     LOGI << "Computing flow (TVL1)...";
@@ -1338,6 +1653,7 @@ bool compute_flow( StereoMatchEnv& env )
 
         env.mesh->set_point( rpt.x, rpt.y, cv::Vec3d( pt[0],pt[1],pt[2] ), R,R,R );
     }
+
     env.mesh->save_as_ply_points( (env.workdir/"/mesh_full_flow.ply").string() );
 
     return true;
@@ -1449,65 +1765,73 @@ int main( int argc, char* argv[] )
         // Save projection matrices
         WASS::save_matrix_txt<double>( (env.workdir/"/P0cam.txt").string(), env.P0);
         WASS::save_matrix_txt<double>( (env.workdir/"/P1cam.txt").string(), env.P1);
+        // Save poses
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseR.txt").string(), env.Rpose0);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseT.txt").string(), env.Tpose0);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseR.txt").string(), env.Rpose1);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseT.txt").string(), env.Tpose1);
+
+
+        //if( INCFG_GET( USE_OPTICAL_FLOW) )
+        //{
+        //if( !compute_flow( env ) )
+        //return -1;
+        //}
+
+        rectify(env);
+        env.timer << "Rectification";
+        std::cout << "[P|20|100]" << std::endl;
+
+        // Save projection matrices again (may have been swapped by rectify)
+        WASS::save_matrix_txt<double>( (env.workdir/"/P0cam.txt").string(), env.P0);
+        WASS::save_matrix_txt<double>( (env.workdir/"/P1cam.txt").string(), env.P1);
+        // Save poses
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseR.txt").string(), env.Rpose0);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseT.txt").string(), env.Tpose0);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseR.txt").string(), env.Rpose1);
+        WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseT.txt").string(), env.Tpose1);
+
+
+        {
+            // Output debug
+            cv::Mat l_temp;
+            cv::cvtColor(env.left_rectified.clone(),l_temp, CV_GRAY2RGB);
+            cv::Mat r_temp;
+            cv::cvtColor(env.right_rectified.clone(),r_temp, CV_GRAY2RGB);
+            cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
+            cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
+            cv::imwrite( (env.workdir/"stereo.jpg").string(), WASS::Render::render_stereo(l_temp,r_temp) );
+        }
+
+        // Dense stereo
+        sgbm_dense_stereo( env );
+        env.timer << "Dense Stereo";
+        std::cout << "[P|40|100]" << std::endl;
+
+        // Triangulation
+        size_t n_pts = triangulate(env);
+        env.timer << "Triangulation";
+        std::cout << "[P|60|100]" << std::endl;
 
         if( INCFG_GET( USE_OPTICAL_FLOW) )
         {
-            compute_flow( env );
-        }
-        else
-        {
-
-            rectify(env);
-            env.timer << "Rectification";
-            std::cout << "[P|20|100]" << std::endl;
-
-
-            // Save projection matrices
-            WASS::save_matrix_txt<double>( (env.workdir/"/P0cam.txt").string(), env.P0);
-            WASS::save_matrix_txt<double>( (env.workdir/"/P1cam.txt").string(), env.P1);
-
-            // Save poses
-            WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseR.txt").string(), env.Rpose0);
-            WASS::save_matrix_txt<double>( (env.workdir/"/Cam0_poseT.txt").string(), env.Tpose0);
-            WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseR.txt").string(), env.Rpose1);
-            WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseT.txt").string(), env.Tpose1);
-
-
-            {
-                // Output debug
-                cv::Mat l_temp;
-                cv::cvtColor(env.left_rectified.clone(),l_temp, CV_GRAY2RGB);
-                cv::Mat r_temp;
-                cv::cvtColor(env.right_rectified.clone(),r_temp, CV_GRAY2RGB);
-                cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
-                cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
-                cv::imwrite( (env.workdir/"stereo.jpg").string(), WASS::Render::render_stereo(l_temp,r_temp) );
-            }
-
-            // Dense stereo
-            sgbm_dense_stereo( env );
-            env.timer << "Dense Stereo";
-            std::cout << "[P|40|100]" << std::endl;
-
-            // Triangulation
-            size_t n_pts = triangulate(env);
-            env.timer << "Triangulation";
-            std::cout << "[P|60|100]" << std::endl;
-
-            if( n_pts < INCFG_GET(MIN_TRIANGULATED_POINTS) )
-            {
-                LOGE << "Too few points triangulated, aborting";
+            if( !refine_flow( env ) )
                 return -1;
-            }
-
-            /* debug
-               if( !env.mesh->save_as_ply_points( (env.workdir+"/mesh_post_stereo.ply") ) )
-               {
-               std::cout << "Unable to save mesh data." << std::endl;
-               return -1;
-               }
-               */
         }
+
+        if( n_pts < INCFG_GET(MIN_TRIANGULATED_POINTS) )
+        {
+            LOGE << "Too few points triangulated, aborting";
+            return -1;
+        }
+
+        /* debug
+           if( !env.mesh->save_as_ply_points( (env.workdir+"/mesh_post_stereo.ply") ) )
+           {
+           std::cout << "Unable to save mesh data." << std::endl;
+           return -1;
+           }
+           */
 
 #if 0
         //cv::imwrite(env.workdir+"/LEFT.jpg", env.left_crop);
@@ -1580,8 +1904,8 @@ int main( int argc, char* argv[] )
 
         std::vector< cv::Vec3d > dbg_inliers;
         env.mesh->refine_plane( INCFG_GET(PLANE_REFINE_XMIN), INCFG_GET(PLANE_REFINE_XMAX),
-                                INCFG_GET(PLANE_REFINE_YMIN), INCFG_GET(PLANE_REFINE_YMAX),
-                                &dbg_inliers );
+                INCFG_GET(PLANE_REFINE_YMIN), INCFG_GET(PLANE_REFINE_YMAX),
+                &dbg_inliers );
 
         {
             std::ofstream ofs( (env.workdir/"/plane_refinement_inliers.xyz").c_str() );
