@@ -22,6 +22,7 @@ endif()
 add_executable( ${PROJECT_NAME} wass_stereo.cpp
                                 PovMesh.cpp
                                 render.hpp
+                                nanoflann.hpp
                                 ${INCFG_LIBRARY}
                                 )
 
