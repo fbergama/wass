@@ -31,6 +31,36 @@ WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/)
 <img src="/wass/img/ritmare-logo.png" class="logoimg" />
 </div>
 
+# Citing
+
+We recently published a [paper](/wass/papers/1-s2.0-S0098300417304302-main.pdf) covering all the internal details of our
+pipeline: 
+
+
+```
+Bergamasco, F., Torsello, A., Sclavo, M., Barbariol, F., Benetazzo, A. "WASS: An open-source pipeline for 3D stereo reconstruction of ocean waves”, Computers and Geosciences, vol. 107, pp.28-36, 2017
+DOI: 10.1016/j.cageo.2017.07.001
+```
+
+In BibTeX format:
+
+```
+@article{ BERGAMASCO2017,
+  title = "WASS: An open-source pipeline for 3D stereo reconstruction of ocean waves",
+  journal = "Computers \& Geosciences",
+  volume = "107",
+  number = "",
+  pages = "28 - 36",
+  year = "2017",
+  issn = "0098-3004",
+  doi = "http://dx.doi.org/10.1016/j.cageo.2017.07.001",
+  author = "Filippo Bergamasco and Andrea Torsello and Mauro Sclavo and Francesco Barbariol and Alvise Benetazzo",
+}
+```
+
+You are invited to cite this work if you use WASS on your research. 
+
+
 # Features
 
 - High-quality 3D point-cloud recovery from stereo frames
@@ -41,6 +71,7 @@ WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/)
 - Event-driven parallel task management via [node.js](http://www.nodejs.org)
 - Open source code based on mature open-source components
 - Multi-platform support (Linux, OSX, Windows)
+
 
 
 # Contributing

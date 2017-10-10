@@ -11,12 +11,17 @@ menuOrder: 3
 <ul class="publist" >
 
 <li>
+Bergamasco, F., Torsello, A., Sclavo, M., Barbariol, F., Benetazzo, A., 2017.<em>WASS: An open-source pipeline for 3D stereo reconstruction of ocean waves</em>, Computers and Geosciences, vol. 107, pp. 28-36.
+<br />***DOI: 10.1016/j.cageo.2017.07.001***
+</li>
+
+<li>
 Cavaleri, L., Benetazzo, A., Barbariol, F., Bidlot, J.R., Janssen, P.A.E.M., 2017.<em>The Draupner event: the large wave and the emerging view. BULLETIN OF THE AMERICAN METEOROLOGICAL SOCIETY</em>, Accepted for publication.
 <br />***DOI: 10.1175/BAMS-D-15-00300.1.***
 </li>
 
 <li>
-Barbariol, F., Alves, J.H. Benetazzo, A., Bergamasco, F., Bertotti, L., Carniel, S., Cavaleri, L., Chao, Y.Y., Chawla, A., Ricchi, A., Sclavo, M., Tolman, H., 2017. <em>Numerical Modeling of Space-Time Wave Extremes using WAVEWATCH III</em>. OCEAN DYNAMICS, Accepted for publication. 
+Barbariol, F., Alves, J.H. Benetazzo, A., Bergamasco, F., Bertotti, L., Carniel, S., Cavaleri, L., Chao, Y.Y., Chawla, A., Ricchi, A., Sclavo, M., Tolman, H., 2017. <em>Numerical Modeling of Space-Time Wave Extremes using WAVEWATCH III</em>. Ocean Dynamics, vol. 67, pp. 535-549. 
 <br />***DOI: 10.1007/s10236-016-1025-0***
 </li>
 
