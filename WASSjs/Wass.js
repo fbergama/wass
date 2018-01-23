@@ -428,8 +428,7 @@ Q.when( extexe_sanity_check(settings), function() {
          *
          *  Performs wass_stereo on all the workspaces
          */
-        mainq.process('dense', 1/*settings.stereo_parallel_jobs*/, function(job,ctx,done) {
-
+        mainq.process('dense', settings.stereo_parallel_jobs, function(job,ctx,done) {
 
             /*
             var redis = new ioRedis();
@@ -457,15 +456,13 @@ Q.when( extexe_sanity_check(settings), function() {
                 }
             });
             /**/
-            /**/
+            /*
             ctx.pause( 50000, function(err){
                 console.log("Worker is paused... ");
                 setTimeout( function(){ ctx.resume(); }, 5000 );
             });
             /**/
 
-            setTimeout( function() { console.log("DONE!"); done(); }, 2000 );
-            /*
             var workspacepath = worksession.workdir+job.data.workspacename;
             var workspace_num = parseInt( job.data.workspacename.slice(0,6));
             var config_file = worksession.confdir + worksession.dense_stereo_config_file;
@@ -524,7 +521,6 @@ Q.when( extexe_sanity_check(settings), function() {
             }, function(i,n) {
                 job.progress(i,n);
             });
-                      */
         });
 
 
@@ -600,10 +596,10 @@ Q.when( extexe_sanity_check(settings), function() {
                     return done( new Error("Bad return code, check log") );
                 }
 
-                fs.unlink( worksession.workdir+logfile );
+                fs.unlinkSync( worksession.workdir+logfile );
                 worksession.wdir_frames.push( job.data.workspacename );
 
-                fs.appendFile( worksession.workdir+"/workspaces.txt", job.data.workspacename+"\n" );
+                fs.appendFileSync( worksession.workdir+"/workspaces.txt", job.data.workspacename+"\n" );
 
                 return done();
 
