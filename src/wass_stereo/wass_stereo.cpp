@@ -648,7 +648,7 @@ INCFG_REQUIRE( int, DENSE_PREFILTER_CAP, 60, "SGBM PreFilterCap")
 INCFG_REQUIRE( int, DENSE_SPECKLE_RANGE, 16, "SGBM SpeckleRange")
 INCFG_REQUIRE( int, DENSE_SPECKLE_WINDOW_SIZE, -70, "SGBM SpeckleWindowSize")
 
-INCFG_REQUIRE( int, DENSE_DISPARITY_BIGGEST_COMPONENT_THRESHOLD, 50, "Maximum squared gradient magnitude threshold for biggest connected component extraction (0 to disable)")
+INCFG_REQUIRE( int, DENSE_DISPARITY_BIGGEST_COMPONENT_THRESHOLD, 0, "Maximum squared gradient magnitude threshold for biggest connected component extraction (0 to disable)")
 
 
 void sgbm_dense_stereo( StereoMatchEnv& env )
