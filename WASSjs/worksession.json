@@ -10,5 +10,5 @@
     "dense_stereo_config_file":"stereo_config.txt",
     "wdir_frames":[],
     "seq_start":0,
-    "seq_end":6
+    "seq_end":9
 }
