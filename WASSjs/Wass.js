@@ -18,7 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
 
-
+require('events').EventEmitter.prototype._maxListeners = 0;
 var kue = require('kue');
 var RunTask = require("./runtask.js");
 var utils = require("./utils.js");
@@ -32,7 +32,7 @@ var ioRedis = require('ioredis');
 
 
 
-var WASSjs_VERSION = "1.2";
+var WASSjs_VERSION = "1.3";
 
 console.log( "Welcome to Wass.js  - " + WASSjs_VERSION );
 console.log( "======================================================" );
