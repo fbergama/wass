@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 (function(global){
-    
+
     var Q = require('q');
     var kue = require('kue');
 
@@ -37,14 +37,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
     }
 
     /**
-     * # Deletes a file or a directory in a recursive way 
-     * (ie. if path is a directory, deleteRecursive is called 
-     * on each contained element 
+     * # Deletes a file or a directory in a recursive way
+     * (ie. if path is a directory, deleteRecursive is called
+     * on each contained element
      */
     module.exports.deleteRecursive = function(path) {
         var fs = require('fs');
         if( fs.existsSync(path) ) {
-            
+
             if( fs.lstatSync( path ).isDirectory() ) {
                 fs.readdirSync(path).forEach(function(file,index){
                     var curPath = path + "/" + file;
@@ -59,7 +59,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
     /**
      * # Set all active <jobname> jobs to inactive
-     */ 
+     */
     module.exports.deactivate_all_active = function( jobname ) {
         var def = Q.defer();
 
@@ -76,8 +76,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
     /**
-     * # Set all active <jobname> jobs to inactive
-     */ 
+     * # Returns all the active jobs
+     */
     module.exports.get_active_jobs = function( jobname ) {
         var deferred = Q.defer();
         require('kue').Job.rangeByType(jobname, 'active', 0, -1, 'asc', function (err, selectedJobs) {

@@ -24,7 +24,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
      var cp = require('child_process');
      var fs = require('fs');
 
-     function RunTask( name, args, cwd, logfile ) 
+     function RunTask( name, args, cwd, logfile )
      {
          this.process = undefined;
          this.args = args;
@@ -34,13 +34,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
      }
 
 
-     RunTask.prototype.start = function( onexit, onerror, progress ) 
+     RunTask.prototype.start = function( onexit, onerror, progress )
      {
          var ostream;
 
          if( this.logfile ) {
              ostream = fs.createWriteStream( this.cwd+"/"+this.logfile );
-         } else { 
+         } else {
              ostream = {
                  write: function(data) {},
                  end: function(){}
@@ -52,7 +52,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
          this.process = cp.spawn(procname, this.args, {
              cwd: this.cwd,
          } ).on("error",function(err){ onerror('Unable to spawn child process '+procname); });
-         
+
          this.process.stdout.on("data", function(data) {
 
 //           console.log(data+"");

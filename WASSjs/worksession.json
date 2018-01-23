@@ -5,10 +5,10 @@
     "confdir":"../test/WASS_TEST/W07/config/",
     "savediskspace":false,
     "keepimages":true,
-    "zipoutput":true,
+    "zipoutput":false,
     "match_config_file":"matcher_config.txt",
     "dense_stereo_config_file":"stereo_config.txt",
     "wdir_frames":[],
     "seq_start":0,
-    "seq_end":6
+    "seq_end":9
 }
