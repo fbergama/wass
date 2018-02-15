@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.1)
 project( wass_stereo )
 
+include(CheckIncludeFileCXX)
+check_include_file_cxx( opencv2/optflow.hpp HAVE_OPENCV_OPTFLOW )
+if(HAVE_OPENCV_OPTFLOW)
+    add_definitions(-DWASS_ENABLE_OPTFLOW)
+endif(HAVE_OPENCV_OPTFLOW)
+
 if( DISABLE_BOOST_LOG )
 else()
 add_definitions(-DBOOST_LOG_DYN_LINK)

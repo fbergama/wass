@@ -26,7 +26,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
+
+#ifdef WASS_ENABLE_OPTFLOW
 #include <opencv2/optflow.hpp>
+#endif
 
 #include "incfg.hpp"
 #include "wassglobal.hpp"
@@ -61,6 +64,7 @@ INCFG_REQUIRE( double, PLANE_MAX_DISTANCE, 1.5, "Maximum point-plane distance al
 INCFG_REQUIRE( bool, SAVE_AS_PLY, false, "Save final reconstructed point cloud also in PLY format" )
 INCFG_REQUIRE( bool, SAVE_COMPRESSED, true, "Save in 16-bit compressed format" )
 
+#ifdef WASS_ENABLE_OPTFLOW
 INCFG_REQUIRE( bool, USE_OPTICAL_FLOW, false, "Use optical flow for 3D reconstruction (experimental)" )
 INCFG_REQUIRE( int, FLOW_REFINEMENT_FULLRES_ITERATIONS, 200, "Number of iterations for flow refinement" )
 INCFG_REQUIRE( double, FLOW_REFINEMENT_COLOR_CONSISTENCY_FACTOR, 100, "Color consistency factor for both the low-res and high-res flow refinement" )
@@ -68,6 +72,7 @@ INCFG_REQUIRE( double, FLOW_REFINEMENT_LOWRES_SMOOTHNESS_FACTOR, 90, "Smoothness
 INCFG_REQUIRE( double, FLOW_REFINEMENT_FULLRES_SMOOTHNESS_FACTOR, 300, "Smoothness factor for the full-res flow refinement" )
 INCFG_REQUIRE( int, FLOW_OPENING_DILATE, 1, "Dilate steps in flow mask" )
 INCFG_REQUIRE( int, FLOW_OPENING_ERODE, 1, "Erode steps in flow mask" )
+#endif
 
 /*
  *  Compile-time feature set utilities
@@ -1165,6 +1170,9 @@ size_t triangulate( StereoMatchEnv& env )
 
 
 
+
+#ifdef WASS_ENABLE_OPTFLOW
+
 inline bool isFlowCorrect(cv::Point2f u)
 {
     return !cvIsNaN(u.x) && !cvIsNaN(u.y) && fabs(u.x) < 1e9 && fabs(u.y) < 1e9;
@@ -1329,7 +1337,7 @@ void flow_to_points( const cv::Mat& flow, const StereoMatchEnv& env, const cv::M
     }
 }
 
-#if 1
+
 void vr_warpImage(cv::Mat &dst, cv::Mat &src, cv::Mat &flow_u, cv::Mat &flow_v)
 {
     cv::Mat_<float> mapX = cv::Mat_<float>(flow_u.rows, flow_u.cols);
@@ -1349,7 +1357,6 @@ void vr_warpImage(cv::Mat &dst, cv::Mat &src, cv::Mat &flow_u, cv::Mat &flow_v)
     }
     remap(src, dst, mapX, mapY, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 }
-#endif
 
 bool refine_flow( StereoMatchEnv& env )
 {
@@ -1546,234 +1553,7 @@ bool refine_flow( StereoMatchEnv& env )
     return true;
 }
 
-
-bool compute_flow( StereoMatchEnv& env )
-{
-    // Compute a coarse initial alignment using matches
-    //
-    //
-    //
-    //
-    std::vector< cv::Point2d > pts_0;
-    std::vector< cv::Point2d > pts_1;
-    cv::Mat H;
-    const float invalid_flow = 1000;
-
-    if( boost::filesystem::exists( env.workdir/"H.xml" ) )
-    {
-        H = WASS::load_matrix( env.workdir/"H.xml" );
-        if( H.rows!=3 || H.cols!=3 )
-        {
-            LOGE << "Unable to load H.xml, aborting";
-            return false;
-        }
-    }
-    else
-    {
-        // Load matches
-        std::ifstream ifs( ((env.workdir)/"matches.txt").string().c_str() );
-        if( !ifs.is_open() )
-        {
-            LOGE << "Unable to load matches from " << (env.workdir)/"matches.txt" << ", skipping";
-            return false;
-        }
-        size_t n_matches;
-        ifs >> n_matches;
-
-        for( size_t k=0; k<n_matches; ++k )
-        {
-            cv::Vec2d p0;
-            cv::Vec2d p1;
-            ifs >> p0[0];
-            ifs >> p0[1];
-            ifs >> p1[0];
-            ifs >> p1[1];
-
-            pts_0.push_back( cv::Point2d(p0[0],p0[1]) );
-            pts_1.push_back( cv::Point2d(p1[0],p1[1]) );
-        }
-
-        LOGI << n_matches << " matches loaded";
-        H = cv::findHomography( pts_0, pts_1 );
-
-        LOGI << "Homography estimated: " << H;
-        LOGI << "Homography determinant: " << cv::determinant( H );
-    }
-
-    cv::Mat left_warp;
-    cv::warpPerspective( env.left, left_warp, H, cv::Size( env.left.cols, env.left.rows) );
-    cv::imwrite( (env.workdir/"flow_00_left.png").string(), env.left );
-    cv::imwrite( (env.workdir/"flow_01_right.png").string(), env.right );
-    cv::imwrite( (env.workdir/"flow_03_left_warp.png").string(), left_warp );
-
-
-    //cv::Rect croprect( cv::Point(695,110), cv::Point(left_warp.cols-10,left_warp.rows-10) );
-    cv::Rect croprect( cv::Point(0,0), cv::Point(left_warp.cols-1,left_warp.rows-1) );
-
-
-    cv::Mat flow = cv::Mat::ones(env.right.rows, env.right.cols, CV_32FC2 )*invalid_flow;
-    LOGI << "Computing initial flow...";
-    const double initial_flow_scale_factor=1.0;
-    const int blur_k_size=3;
-    {
-        cv::Ptr< cv::FarnebackOpticalFlow > flow_alg = cv::FarnebackOpticalFlow::create();
-        /*
-        flow_alg->setNumLevels(1);
-        flow_alg->setNumIters(500);
-        flow_alg->setPolyN(5);
-        flow_alg->setPolySigma(1.0);
-        */
-
-        cv::Mat A = env.right(croprect).clone();
-        cv::Mat B = left_warp(croprect).clone();
-        cv::resize(A,A,cv::Size(),initial_flow_scale_factor,initial_flow_scale_factor);
-        cv::resize(B,B,cv::Size(),initial_flow_scale_factor,initial_flow_scale_factor);
-        cv::imwrite( (env.workdir/"A.png").string(), A );
-        cv::imwrite( (env.workdir/"B.png").string(), B );
-        cv::Mat F;
-        flow_alg->calc( A, B, F ); // flow moving pixels from right to left
-        LOGI << "Done";
-        cv::Mat ffull;
-        cv::resize(F,ffull,croprect.size() );
-        flow(croprect) = ffull.clone()*(1.0/initial_flow_scale_factor);
-        cv::blur( flow(croprect),flow(croprect),cv::Size(blur_k_size,blur_k_size));
-
-        croprect.x += blur_k_size/2;
-        croprect.y += blur_k_size/2;
-        croprect.width = croprect.width - blur_k_size;
-        croprect.height = croprect.height - blur_k_size;
-
-
-        cv::Mat aux = flow.clone();
-        flow = invalid_flow;
-        aux(croprect).copyTo(flow(croprect));
-
-        cv::Mat flow_render;
-        drawOpticalFlow( flow, flow_render, 50 );
-        cv::imwrite( (env.workdir/"flow_initial.png").string(), flow_render );
-    }
-
-#if 0
-    LOGI << "Computing high-res flow via Variational Refinement...";
-    cv::Ptr< cv::optflow::VariationalRefinement > flow_ref = cv::optflow::createVariationalFlowRefinement();
-    flow_ref->setDelta(50); // Color consistency
-    flow_ref->setGamma(50); // Gradient consistency
-    flow_ref->setAlpha(70); // Smoothness
-    flow_ref->setFixedPointIterations(500);
-
-    LOGI << "   Color consistency factor (delta):" << flow_ref->getDelta();
-    LOGI << "Gradient consistency factor (gamma):" << flow_ref->getGamma();
-    LOGI << "          Smoothness factor (alpha):" << flow_ref->getAlpha();
-    LOGI << "                  Num of iterations:" << flow_ref->getFixedPointIterations();
-    flow_ref->calc( env.right(croprect), left_warp(croprect), flow(croprect) );
-    LOGI << "Done";
 #endif
-
-#if 0
-    LOGI << "Computing flow (TVL1)...";
-    cv::Ptr< cv::DualTVL1OpticalFlow > flow_alg2 = cv::DualTVL1OpticalFlow::create();
-    flow_alg2->setUseInitialFlow(true);
-    flow_alg2->setScalesNumber(1);
-    flow_alg2->setMedianFiltering(1);
-    flow_alg2->setOuterIterations(10);
-    //flow_alg2->setLambda(0.01);
-    //flow_alg2->setLambda();
-    flow_alg2->calc( env.right(croprect), left_warp(croprect), flow(croprect) ); // flow moving pixels from right to left
-    LOGI << "Done";
-#endif
-
-    cv::Mat flow_render;
-    drawOpticalFlow( flow, flow_render, 50 );
-    cv::imwrite( (env.workdir/"flow.png").string(), flow_render );
-
-
-    std::vector< cv::Point2f > good_pts_0;
-    std::vector< cv::Point2f > good_pts_1;
-
-    cv::Mat flow_absolute = cv::Mat::zeros( flow.rows,flow.cols, CV_32FC2);
-
-    std::vector< cv::Point2d > r_pts;
-    std::vector< cv::Point2d > l_pts;
-    cv::Matx33f Hinv = (cv::Matx33f)H;
-    Hinv = Hinv.inv();
-
-    cv::Mat remap_dbg = cv::Mat::zeros( env.left.rows, env.left.cols, CV_8UC1 );
-
-    for( int i=0; i<flow.rows; ++i )
-    {
-        for( int j=0; j<flow.cols; ++j )
-        {
-            cv::Vec2f pxfl = flow.at< cv::Vec2f >(i,j);
-
-            if( isFlowCorrect(pxfl) && cv::norm( pxfl ) < 150  )
-            {
-                cv::Vec2f fl_a = pxfl + cv::Vec2f(j,i);
-                cv::Vec3f left_pt = Hinv * cv::Vec3f( fl_a[0], fl_a[1], 1.0 );
-                left_pt = left_pt / left_pt[2];
-
-                unsigned char col_l = env.left.at<unsigned char>( std::floor(left_pt[1]+0.5), std::floor( left_pt[0]+0.5)  );
-                unsigned char col_r = env.right.at<unsigned char>(i,j);
-
-                if( left_pt[0]>0 && left_pt[0]<env.left.cols && left_pt[1]>0 && left_pt[1]<env.left.rows &&
-                    col_r > 0  &&
-                    col_l >0 )
-                {
-                    flow_absolute.at< cv::Vec2f >(i,j) = fl_a;
-                    r_pts.push_back( cv::Point2d( j,i ) );
-                    l_pts.push_back( cv::Point2d( left_pt[0], left_pt[1]) );
-
-                    remap_dbg.at<unsigned char>(i,j)=col_l;
-#if ENABLED(DEBUG_CORRESPONDENCES)
-                    {
-                        cv::Mat left_debug;
-                        cv::Mat right_debug;
-                        cv::cvtColor(env.left.clone(),left_debug, CV_GRAY2RGB);
-                        cv::cvtColor(env.right.clone(),right_debug, CV_GRAY2RGB);
-
-                        cv::circle( left_debug, l_pts.back() ,10,CV_RGB(255,0,0), 3 );
-                        cv::circle( right_debug, r_pts.back() ,10,CV_RGB(255,0,0), 3 );
-
-                        WASS::Render::show_image(  WASS::Render::render_stereo(left_debug,right_debug), 0.3);
-                        //continue;
-                    }
-#endif
-                }
-            }
-        }
-    }
-
-
-    //cv::Mat remapped;
-    //cv::remap(left_warp,remapped,flow_absolute,cv::Mat(),CV_INTER_LINEAR );
-    //cv::imwrite( (env.workdir/"flow_03_left_remapped.png").string(), remapped );
-    cv::imwrite( (env.workdir/"flow_02_left_remapped.png").string(), remap_dbg );
-
-    LOGI << "Triangulating " << r_pts.size() << " points..";
-    cv::Mat pt3D;
-    cv::triangulatePoints( env.P0, env.P1, cv::Mat( l_pts ), cv::Mat( r_pts ), pt3D );
-
-
-    env.mesh.reset( new PovMesh(env.right.cols, env.right.rows ) );
-    for( size_t kk=0; kk<r_pts.size(); ++kk )
-    {
-        const cv::Point2d& rpt = r_pts[kk];
-        const cv::Point2d& lpt = l_pts[kk];
-        cv::Vec4d pt = pt3D.col( kk );
-
-        pt = pt / pt[3];
-        unsigned char R = env.right.at<unsigned char>( rpt.y, rpt.x );
-        //unsigned char Rl = env.left.at<unsigned char>( std::floor(lpt.y+0.5), std::floor(rpt.x+0.5) );
-
-        if( pt[2]<1.0 || pt[2]>100 )
-            continue;
-
-        env.mesh->set_point( rpt.x, rpt.y, cv::Vec3d( pt[0],pt[1],pt[2] ), R,R,R );
-    }
-
-    env.mesh->save_as_ply_points( (env.workdir/"/mesh_full_flow.ply").string() );
-
-    return true;
-}
 
 
 
@@ -1888,12 +1668,6 @@ int main( int argc, char* argv[] )
         WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseT.txt").string(), env.Tpose1);
 
 
-        //if( INCFG_GET( USE_OPTICAL_FLOW) )
-        //{
-        //if( !compute_flow( env ) )
-        //return -1;
-        //}
-
         rectify(env);
         env.timer << "Rectification";
         std::cout << "[P|20|100]" << std::endl;
@@ -1929,11 +1703,13 @@ int main( int argc, char* argv[] )
         env.timer << "Triangulation";
         std::cout << "[P|60|100]" << std::endl;
 
+#ifdef WASS_ENABLE_OPTFLOW
         if( INCFG_GET( USE_OPTICAL_FLOW) )
         {
             if( !refine_flow( env ) )
                 return -1;
         }
+#endif
 
         if( n_pts < INCFG_GET(MIN_TRIANGULATED_POINTS) )
         {
