@@ -42,6 +42,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "triangulate.hpp"
 #include "nanoflann.hpp"
 
+#include "PointPicker.hpp"
 
 
 INCFG_REQUIRE( int, RANDOM_SEED, -1, "Random seed for ransac. -1 to use system timer" )
@@ -1566,7 +1567,7 @@ int main( int argc, char* argv[] )
     if( argc == 1 )
 	{
         std::cout << "Usage:" << std::endl;
-        std::cout << "wass_stereo [--genconfig] <config_file> <workdir>" << std::endl << std::endl;
+        std::cout << "wass_stereo [--genconfig] <config_file> <workdir> [--measure]" << std::endl << std::endl;
 		std::cout << "Not enough arguments, aborting." << std::endl;
 		return -1;
 	}
@@ -1593,7 +1594,7 @@ int main( int argc, char* argv[] )
         return 0;
     }
 
-    if( argc != 3 )
+    if( argc != 3 && argc != 4 )
     {
         std::cerr << "Invalid arguments" << std::endl;
         return -1;
@@ -1691,6 +1692,47 @@ int main( int argc, char* argv[] )
             cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
             cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
             cv::imwrite( (env.workdir/"stereo.jpg").string(), WASS::Render::render_stereo(l_temp,r_temp) );
+        }
+
+        if(  argc==4 && std::string("--measure").compare(  std::string(argv[3]) ) == 0 )
+        {
+
+            auto select_and_triangulate = [ &env ] () {
+                cv::Point2d pt_left, pt_right;
+
+                {
+                    PointPicker pp( "Left image", env.left );
+                    pp.loop();
+                    pt_left = pp.selected_point();
+                    std::cout << "Left point: " << pt_left << std::endl;
+                }
+
+                {
+                    PointPicker pp( "Right image", env.right );
+                    pp.loop();
+                    pt_right = pp.selected_point();
+                    std::cout << "Right point: " << pt_right << std::endl;
+                }
+
+                cv::Vec2d p( (pt_left.x-env.intrinsics_left.at<double>(0,2)) / env.intrinsics_left.at<double>(0,0), (pt_left.y-env.intrinsics_left.at<double>(1,2)) / env.intrinsics_left.at<double>(1,1) );
+                cv::Vec2d q( (pt_right.x-env.intrinsics_right.at<double>(0,2)) / env.intrinsics_right.at<double>(0,0),(pt_right.y-env.intrinsics_right.at<double>(1,2)) / env.intrinsics_right.at<double>(1,1));
+
+                cv::Vec3d p1 = triangulate( p,q,env.R, env.T);
+                return p1;
+            };
+
+
+            std::cout << "Pick first point" << std::endl;
+            cv::Vec3d p1 = select_and_triangulate();
+            std::cout << "P1: " << p1 << std::endl;
+            std::cout << "Pick second point" << std::endl;
+            cv::Vec3d p2 = select_and_triangulate();
+            std::cout << "P2: " << p2 << std::endl;
+
+            std::cout << "---------------------------------------------" << std::endl;
+            std::cout << "Distance: " << cv::norm( p1-p2 ) << std::endl;
+
+            return 0;
         }
 
         // Dense stereo
