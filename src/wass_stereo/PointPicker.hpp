@@ -25,12 +25,12 @@ void mouse_callback_handler(int event, int x, int y, int flags, void *userdata)
 {
     MouseCallbackHandlerData* mdata = reinterpret_cast<MouseCallbackHandlerData*>(userdata);
 
-    if (event == CV_EVENT_LBUTTONDOWN)
+    if (event == cv::EVENT_LBUTTONDOWN )
     {
         mdata->traslc = cv::Point2i(x, y);
         return;
     }
-    if (event == CV_EVENT_MOUSEMOVE && ( flags&CV_EVENT_FLAG_LBUTTON) )
+    if (event == cv::EVENT_MOUSEMOVE && ( flags & cv::EVENT_FLAG_LBUTTON ) )
     {
         cv::Point2i delta = mdata->traslc - cv::Point2d(x, y);
 
@@ -50,7 +50,15 @@ void mouse_callback_handler(int event, int x, int y, int flags, void *userdata)
         return;
     }
 
+
     int wheel = cv::getMouseWheelDelta(flags);
+
+    if (event == cv::EVENT_MOUSEMOVE && ( flags & cv::EVENT_FLAG_CTRLKEY ) )
+    {
+         wheel = y-mdata->traslc.y;
+         mdata->traslc = cv::Point2i(x, y);
+    }
+
     if ( wheel!=0 )
     {
         double scale = wheel>0?1.1:0.9;
@@ -98,7 +106,7 @@ void mouse_callback_handler(int event, int x, int y, int flags, void *userdata)
         return;
     }
 
-    if (event == CV_EVENT_LBUTTONDBLCLK)
+    if ( event == cv::EVENT_RBUTTONDOWN )
     {
         double xratio = static_cast<double>(x)/(mdata->framesize.width / mdata->display_scale);
         double yratio = static_cast<double>(y)/(mdata->framesize.height / mdata->display_scale);
@@ -115,7 +123,7 @@ void mouse_callback_handler(int event, int x, int y, int flags, void *userdata)
 class PointPicker
 {
 public:
-    
+
     inline PointPicker( std::string winname, const cv::Mat& img ) : wname( winname ), cvimg( img )
     {
         mousedata.p1 = cv::Point(0, 0);
@@ -124,13 +132,13 @@ public:
         mousedata.framesize = cv::Size(cvimg.cols, cvimg.rows);
         mousedata.needs_repaint = true;
         mousedata.point_loc_set = false;
-        
+
         cv::namedWindow( wname, cv::WINDOW_AUTOSIZE | cv::WINDOW_KEEPRATIO | CV_GUI_NORMAL ); // The function does nothing if the window already exists
         cv::moveWindow( wname, 0, 0);
-        cv::imshow( wname, img );
+        //cv::imshow( wname, img );
         cv::setMouseCallback( wname, mouse_callback_handler, &(this->mousedata) );
 
-        std::cout << "Double click to set point, ENTER to accept" << std::endl;
+        std::cout << "Right click to set point, ENTER to accept. Ctrl+mouse move to zoom" << std::endl;
     }
 
 
@@ -174,7 +182,7 @@ private:
     std::string wname;
     const cv::Mat& cvimg;
     MouseCallbackHandlerData mousedata;
-    
+
 
 };
 
