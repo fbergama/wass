@@ -83,6 +83,8 @@ ENDIF()
 MESSAGE( STATUS "WASS generated version string: ${WASS_VERSION_STR}")
 
 SET( WASS_BUILD_ENV_STR "${CMAKE_SYSTEM} - ${CMAKE_CXX_COMPILER_ID}")
+SET( WASS_BUILD_TYPE_STR "${CMAKE_BUILD_TYPE}")
+SET( WASS_OCV_VERSION_STR "${OpenCV_VERSION}")
 
 configure_file( "${CMAKE_CURRENT_SOURCE_DIR}/include/wassglobal.hpp.in" "${CMAKE_CURRENT_BINARY_DIR}/include/wassglobal.hpp" )
 
