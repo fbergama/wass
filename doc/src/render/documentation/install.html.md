@@ -241,7 +241,7 @@ simplify the process of creating and running the appropriate container.
 Supposing that Docker is already installed and configured for your system, you can 
 simply follow this steps:
 
-1. Download the latest version of WASS
+## Download the latest version of WASS
 
 ```
 cd ~
@@ -249,7 +249,7 @@ git clone https://github.com/fbergama/wass
 cd wass
 ```
 
-2. Build the docker image
+## Build the docker image
 
 ```
 sudo ./Docker/docker_build.sh
@@ -257,14 +257,14 @@ sudo ./Docker/docker_build.sh
 
 This usually requires root permissions but may vary depending on your Docker installation
 
-3. Run wass
+## Run wass
 
 Once the image is created, supposing that all the WASS configuration files are
 located in a folder named ```<config>```, the input data in a folder named ```<in>``` and you want
 the output data to be placed in ```<out>```, just run WASS with:
 
 ```
-$ sudo ./Docker/docker_run.sh <config> <in> <out>
+$ ./Docker/docker_run.sh <config> <in> <out>
 ```
 
 And open your browser to http://localhost:8080
