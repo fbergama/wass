@@ -33,6 +33,11 @@ For ***Microsoft Windows (64bit)***, you can also download a pre-built binary di
 
 Latest version (recommended):
 
+- [wass_1.4_win32_x64.zip](/wass/files/wass_1.4_win32_x64.zip)
+
+
+Previous versions:
+
 - [wass_1.1_win32_x64.zip](/wass/files/wass_1.1_win32_x64.zip)
 
 
