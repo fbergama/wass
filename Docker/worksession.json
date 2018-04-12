@@ -1,0 +1,14 @@
+{
+    "cam0_datadir":"/DATA_IN/cam0/",
+    "cam1_datadir":"/DATA_IN/cam1/",
+    "workdir":"/DATA_OUT/",
+    "confdir":"/DATA_CONF/",
+    "savediskspace":false,
+    "keepimages":true,
+    "zipoutput":false,
+    "match_config_file":"matcher_config.txt",
+    "dense_stereo_config_file":"stereo_config.txt",
+    "wdir_frames":[],
+    "seq_start":0,
+    "seq_end":9
+}
