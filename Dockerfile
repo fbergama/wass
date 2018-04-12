@@ -1,7 +1,7 @@
 FROM ubuntu:16.04
 LABEL maintainer "filippo.bergamasco@unive.it"
 
-RUN apt-get -yqq update && apt-get -yqq install curl build-essential cmake git
+RUN apt-get -yqq update && apt-get -yqq install zip gzip tar curl build-essential cmake git
 RUN apt-get -yqq update && apt-get -yqq install liblapack-dev libblas-dev libboost-all-dev
 RUN apt-get -yqq update && apt-get -yqq install ffmpeg libavcodec-dev libavformat-dev libswscale-dev libavresample-dev
 
@@ -17,6 +17,7 @@ RUN curl -o /usr/local/bin/gosu -SL "https://github.com/tianon/gosu/releases/dow
 # Install node
 RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
 RUN apt-get -yqq update && apt-get install -y nodejs
+
 
 # Build OpenCV version 3.4
 #
