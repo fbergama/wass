@@ -253,6 +253,12 @@ int main( int argc, char* argv[] )
         er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
         LOGI << "SBA-optimized epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
 
+
+        LOGI << "Computing 0->1 matches homography";
+        cv::Mat H = cv::findHomography( pts0_px, pts1_px );
+        LOGI << "Homography estimated: " << H;
+        LOGI << "Homography determinant: " << cv::determinant( H );
+
         if( er.avg < ransac_avgerr )
         {
             // Save update extrinsics to each workspace
@@ -263,6 +269,9 @@ int main( int argc, char* argv[] )
                 fs.release();
                 fs.open( ((*it)/"ext_T.xml").string(), cv::FileStorage::WRITE );
                 fs << "ext_T" << T;
+                fs.release();
+                fs.open( ((*it)/"H.xml").string(), cv::FileStorage::WRITE );
+                fs << "H" << H;
                 fs.release();
             }
         } else

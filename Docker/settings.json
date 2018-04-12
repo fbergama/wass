@@ -1,5 +1,5 @@
 {
-    "pipeline_dir": "../dist/bin/",
+    "pipeline_dir": "/wass/dist/bin/",
     "prepare_exe": "wass_prepare",
     "matcher_exe": "wass_match",
     "autocalibrate_exe": "wass_autocalibrate",

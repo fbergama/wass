@@ -1,8 +1,8 @@
 {
-    "cam0_datadir":"../test/WASS_TEST/W07/input/cam0/",
-    "cam1_datadir":"../test/WASS_TEST/W07/input/cam1/",
-    "workdir":"../test/output_W07/",
-    "confdir":"../test/WASS_TEST/W07/config/",
+    "cam0_datadir":"/DATA_IN/cam0/",
+    "cam1_datadir":"/DATA_IN/cam1/",
+    "workdir":"/DATA_OUT/",
+    "confdir":"/DATA_CONF/",
     "savediskspace":false,
     "keepimages":true,
     "zipoutput":false,

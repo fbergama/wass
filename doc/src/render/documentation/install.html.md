@@ -16,6 +16,7 @@ Use the following links to get detailed installation instructions for your syste
 - [Linux](#linux)
 - [Mac OSX](#mac-osx)
 - [Windows](#windows)
+- [Docker](#docker)
 
 ## Pre-requisites
 
@@ -51,7 +52,7 @@ enter the following commands:
 
 ```
 sudo apt-get install ffmpeg libavcodec-dev libavformat-dev
-git clone https://github.com/opencv/opencv.git --depth 1
+git clone https://github.com/opencv/opencv.git --depth 1 -b 3.4.0 --single-branch
 cd opencv
 mkdir build
 cd build 
@@ -230,4 +231,42 @@ x64](files/vc_redist.x64.exe).
 
 WASS should be now installed and configured. You can proceed with [testing the
 pipeline](testing.html).
+
+
+# Docker
+
+A complete WASS system can be installed in a Docker container. A set of bash scripts
+simplify the process of creating and running the appropriate container.
+
+Supposing that Docker is already installed and configured for your system, you can 
+simply follow this steps:
+
+1. Download the latest version of WASS
+
+```
+cd ~
+git clone https://github.com/fbergama/wass
+cd wass
+```
+
+2. Build the docker image
+
+```
+sudo ./Docker/docker_build.sh
+```
+
+This usually requires root permissions but may vary depending on your Docker installation
+
+3. Run wass
+
+Once the image is created, supposing that all the WASS configuration files are
+located in a folder named ```<config>```, the input data in a folder named ```<in>``` and you want
+the output data to be placed in ```<out>```, just run WASS with:
+
+```
+$ sudo ./Docker/docker_run.sh <config> <in> <out>
+```
+
+And open your browser to http://localhost:8080
+
 

@@ -26,6 +26,7 @@ for ii=1:numel(input_frames)
     
     % remove outliers
     inliers = find(abserr<prctile( abserr, 99.9 ));
+    fprintf('%d inliers. Mean absolute error %f\n', numel(inliers), mean(abserr(inliers)) );
     assert( mean(abserr(inliers))<0.02, sprintf('Mean absolute error > 0.02'));
     
     fprintf('%s........... test passed\n', wdir );

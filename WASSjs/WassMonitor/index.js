@@ -3,6 +3,17 @@
 
 $(document).ready( function() {
 
+    var refresh_workspace_data = function() {
+        $.getJSON("worksession", function(data) {
+            $("#nframesvar").html( data.wdir_frames.length );
+            $("#wdirvar").html( data.workdir );
+            $("#cam0dirvar").html( data.cam0_datadir );
+            $("#cam1dirvar").html( data.cam1_datadir );
+            $("#savediskspacevar").html( data.savediskspace ? "Yes" : "No" );
+            $("#keepimagesvar").html( data.keepimages ? "Yes" : "No" );
+        });
+    }
+
     var add_activity = function( name, percent) {
 
         $('#jobspanel').append('<div class="well well-sm activejob"><div class="taskname"><span class="glyphicon glyphicon-cog" aria-hidden="true">&nbsp;</span>'+name+'</div><div class="progress"><div class="progress-bar" role="progressbar" aria-valuenow="'+percent+'" aria-valuemin="0" aria-valuemax="100" style="width: '+percent+'%;">'+percent+'%</div></div></div>');
@@ -62,10 +73,32 @@ $(document).ready( function() {
             }
         });
     });
+    $("#workspacereloadbutton").on("click", function() {
+        $.getJSON("reloadworksession", function(data) {
+            if( data.error ) {
+                show_alert("Workspace reload failed");
+            }
+            refresh_workspace_data();
+        }).error("Workspace reload failed").done();
+    });
+    $("#playbutton").on("click", function() {
+        $.getJSON("resumequeue", function(data) {
+            if( data.error ) {
+                show_alert("Queue start failed");
+            }
+        }).error("Queue start failed").done();
+    });
+    $("#pausebutton").on("click", function() {
+        $.getJSON("pausequeue", function(data) {
+            if( data.error ) {
+                show_alert("Queue start failed");
+            }
+        }).error("Queue start failed").done();
+    });
 
 
     setInterval( function() {
-        
+
         $.getJSON("activejobs", function(data) {
             $("#jobspanel").html("");
             $("#numrunningjobs").text( ""+data.length );
@@ -109,19 +142,10 @@ $(document).ready( function() {
                 $("#workspacepanel").hide(400);
             else
                 $("#workspacepanel").show(400);
-            
+
         });
     }, 500 );
 
-    setInterval( function() {
-        $.getJSON("worksession", function(data) {
-            $("#nframesvar").html( data.wdir_frames.length );
-            $("#wdirvar").html( data.workdir );
-            $("#cam0dirvar").html( data.cam0_datadir );
-            $("#cam1dirvar").html( data.cam1_datadir );
-            $("#savediskspacevar").html( data.savediskspace ? "Yes" : "No" );
-            $("#keepimagesvar").html( data.keepimages ? "Yes" : "No" );
-        });
-    },5000);
+    setTimeout( refresh_workspace_data, 500);
 
 });
