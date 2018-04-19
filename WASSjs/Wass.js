@@ -32,7 +32,7 @@ var ioRedis = require('ioredis');
 
 
 
-var WASSjs_VERSION = "1.3";
+var WASSjs_VERSION = "1.4";
 
 console.log( "Welcome to Wass.js  - " + WASSjs_VERSION );
 console.log( "======================================================" );
@@ -477,6 +477,9 @@ Q.when( extexe_sanity_check(settings), function() {
                     console.log("DONE");
                     return done( new Error("Bad return code, check log") );
                 }
+
+                var pl = fs.readFileSync( workspacepath+'plane.txt', 'utf-8' ).replace(/\n/g,' ').replace(/\r/g,' ') ;
+                fs.appendFileSync( worksession.workdir+'/planes.txt', pl+'\n' );
 
                 // Delete source images if necessary
                 if( !worksession.keepimages && workspace_num > worksession.keep_images_end ) {
