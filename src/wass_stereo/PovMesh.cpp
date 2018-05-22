@@ -575,20 +575,32 @@ void PovMesh::crop(int top, int left, int bottom, int right)
 
 
 INCFG_REQUIRE( bool, PLANE_WEIGHT_PROPORTIONAL_TO_DISTANCE, true, "use point to camera distance as weight during LLS plane fitting" )
+INCFG_REQUIRE( bool, PLANE_USE_CENTRAL_THIRD_ONLY, false, "use only the central third of the image to estimate the mean sea plane" )
+INCFG_REQUIRE( double, PLANE_REFINEMENT_MAX_DISTANCE, 70.0, "max point distance for plane refinement" )
 
 void PovMesh::refine_plane( double xmin, double xmax, double ymin, double ymax, std::vector<cv::Vec3d>* dbg_inliers )
 {
     LOG_SCOPE("refine_plane");
-    const size_t NPTS=pImpl->size();
-    for( size_t i=0; i<NPTS; ++i )
+    
+    const int umin = INCFG_GET(PLANE_USE_CENTRAL_THIRD_ONLY) ? pImpl->width / 4 : 0;
+    const int umax = INCFG_GET(PLANE_USE_CENTRAL_THIRD_ONLY) ? pImpl->width*3 / 4 : pImpl->width-1;
+    const int vmin = INCFG_GET(PLANE_USE_CENTRAL_THIRD_ONLY) ? pImpl->height / 4 : 0;
+    const int vmax = INCFG_GET(PLANE_USE_CENTRAL_THIRD_ONLY) ? pImpl->height*2 / 3 : pImpl->height-1;
+
+    for( int v=vmin; v<=vmax; ++v )
     {
-        if( pImpl->PTc( i ).valid  )
+        for( int u=umin; u<=umax; ++u )
         {
-            cv::Vec3d p = pImpl->PTc( i ).p3d;
-            if( p[0]>xmin && p[0]<xmax &&
-                p[1]>ymin && p[1]<ymax )
+            const PovMesh::Point& pmp = pImpl->PTc(u,v);
+            if( pmp.valid  )
             {
-                dbg_inliers->push_back( p );
+                cv::Vec3d p = pmp.p3d;
+                if( p[0]>xmin && p[0]<xmax &&
+                    p[1]>ymin && p[1]<ymax  &&
+                    sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]) < INCFG_GET(PLANE_REFINEMENT_MAX_DISTANCE) )
+                {
+                    dbg_inliers->push_back( p );
+                }
             }
         }
     }
@@ -605,7 +617,8 @@ void PovMesh::refine_plane( double xmin, double xmax, double ymin, double ymax, 
         const double& px=dbg_inliers->at(i)[0];
         const double& py=dbg_inliers->at(i)[1];
         const double& pz=dbg_inliers->at(i)[2];
-        const double w = INCFG_GET(PLANE_WEIGHT_PROPORTIONAL_TO_DISTANCE) ? sqrt(px*px + py*py + pz*pz) : 1.0;
+        const double dist = sqrt(px*px + py*py + pz*pz);
+        const double w = INCFG_GET(PLANE_WEIGHT_PROPORTIONAL_TO_DISTANCE) ? dist : 1.0;
         weights[i] = w;
         wsum+=w;
 
