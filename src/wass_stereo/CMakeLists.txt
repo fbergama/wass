@@ -29,6 +29,8 @@ add_executable( ${PROJECT_NAME} wass_stereo.cpp
                                 PovMesh.cpp
                                 render.hpp
                                 nanoflann.hpp
+                                stereorectify.cpp
+                                stereorectify.h
                                 ${INCFG_LIBRARY}
                                 )
 

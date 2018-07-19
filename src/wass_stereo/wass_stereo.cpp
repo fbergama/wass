@@ -44,6 +44,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "PointPicker.hpp"
 
+#include "stereorectify.h"
+
 
 INCFG_REQUIRE( int, RANDOM_SEED, -1, "Random seed for ransac. -1 to use system timer" )
 INCFG_REQUIRE( int, MIN_TRIANGULATED_POINTS, 100, "Minimum number of triangulated point to proceed with plane estimation" )
@@ -126,7 +128,7 @@ struct PointCloud
     {
         const T d0=p1[0]-pts[idx_p2].x;
         const T d1=p1[1]-pts[idx_p2].y;
-        
+
         if( size==1 )
             return d0*d0;
 
@@ -152,16 +154,16 @@ struct PointCloud
 
 typedef KDTreeSingleIndexAdaptor< L2_Simple_Adaptor< float, PointCloud<float> > ,
                                   PointCloud< float >,
-                                  2  
+                                  2
                                   > my_kd_tree_t;
 
 
 class KDTreeImpl
 {
-public: 
+public:
     KDTreeImpl() : tree( 2, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */) )
     {
-    
+
     }
     PointCloud<float> cloud;
     my_kd_tree_t tree;
@@ -227,17 +229,21 @@ struct StereoMatchEnv
     cv::Mat Tpose1;
 
     // Rectification data
-    cv::Mat rec_R1;
-    cv::Mat rec_R2;
-    cv::Mat rec_P1;
-    cv::Mat rec_P2;
-    cv::Mat Q;
+    cv::Matx33d H0;
+    cv::Matx33d H0i;
+    cv::Matx33d H1;
+    cv::Matx33d H1i;
+    //cv::Mat rec_R1;
+    //cv::Mat rec_R2;
+    //cv::Mat rec_P1;
+    //cv::Mat rec_P2;
+    //cv::Mat Q;
     cv::Rect roi_comb_left;
     cv::Rect roi_comb_right;
-    cv::Mat imgleft_map1;
-    cv::Mat imgleft_map2;
-    cv::Mat imgright_map1;
-    cv::Mat imgright_map2;
+    //cv::Mat imgleft_map1;
+    //cv::Mat imgleft_map2;
+    //cv::Mat imgright_map1;
+    //cv::Mat imgright_map2;
 
     // Stereo data
     cv::Mat disparity;
@@ -276,6 +282,9 @@ struct StereoMatchEnv
 
     inline cv::Vec2d unrectify( const cv::Vec2d& uv, const bool use_left ) const
     {
+        cv::Vec3d uvr = (use_left ? H0i : H1i ) * cv::Vec3d( uv[0], uv[1], 1 );
+        return cv::Vec2d( uvr[0] / uvr[2], uvr[1] / uvr[2] );
+#if 0
         const cv::Mat& intr = use_left? intrinsics_left : intrinsics_right;
         const cv::Matx33d R = use_left? (cv::Matx33d)rec_R1 : (cv::Matx33d)rec_R2;
         const cv::Mat& newintr = use_left ? rec_P1 : rec_P2;
@@ -291,6 +300,7 @@ struct StereoMatchEnv
 
         return cv::Vec2d( xyw[0]*intr.at<double>(0,0) + intr.at<double>(0,2),
                           xyw[1]*intr.at<double>(1,1) + intr.at<double>(1,2));
+#endif
     }
 
     void computeP( )
@@ -419,16 +429,61 @@ bool rectify( StereoMatchEnv& env )
     bool auto_swap = true;
     bool do_swap=false;
 
+    if( cv::abs( env.T.at<double>(1) ) >  cv::abs( env.T.at<double>(0) ) )
+    {
+        LOGE << "Vertical stereo not supported";
+        return false;
+    }
+
+    LOGI << "Detected stereo setup:";
+    if( env.T.at<double>(0) > 0 )
+    {
+        LOGI << "CAM1 (L) ---------  CAM0 (R)";
+    }
+    else
+    {
+        LOGI << "CAM0 (L) ---------  CAM1 (R)";
+    }
+
+
     if( INCFG_GET(DISABLE_AUTO_LEFT_RIGHT) )
     {
         auto_swap=false;
         do_swap = INCFG_GET(SWAP_LEFT_RIGHT);
         LOGI << "auto left-right detection disabled. Swap left-right? " << (do_swap?"YES":"NO");
+
+        if( do_swap )
+        {
+            LOGI << "swapping left-right images as requested";
+            env.swapLeftRight();
+        }
+    }
+    else
+    {
+        // Auto left-right swap
+        if( env.T.at<double>(0) < 0 )
+        {
+            LOGI << "auto-swapping left-right images" << std::endl;
+            env.swapLeftRight();
+        }
     }
 
-    bool rectification_ok = false;
-    bool swapped = false;
     cv::Size imgsize( env.left.cols, env.left.rows );
+    cv::Rect ROI;
+    stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.H0, env.H1, ROI);
+
+    env.roi_comb_left = ROI;
+    env.roi_comb_right = ROI;
+    env.H0i = env.H0.inv();
+    env.H1i = env.H1.inv();
+
+    cv::warpPerspective( env.left, env.left_rectified, env.H0, imgsize );
+    cv::warpPerspective( env.right, env.right_rectified, env.H1, imgsize );
+
+    env.left_crop = env.left_rectified(env.roi_comb_left).clone();
+    env.right_crop = env.right_rectified(env.roi_comb_right).clone();
+
+#if 0
 
     cv::Rect roi_left;
     cv::Rect roi_right;
@@ -504,6 +559,7 @@ bool rectify( StereoMatchEnv& env )
     env.left_crop = env.left_rectified(env.roi_comb_left).clone();
     env.right_crop = env.right_rectified(env.roi_comb_right).clone();
 
+#endif
     LOGI << "rectification map generated";
     return true;
 }
@@ -1006,7 +1062,7 @@ size_t triangulate( StereoMatchEnv& env )
                 float xl = (float)( xr - env.roi_comb_right.x + env.roi_comb_left.x - env.disparity.at<float>(yr_i,xr) + env.disparity_compensation/stereo_scale );
                 float yl = (float)yr_i;
 
-                if( xl < 0 || xl >= env.imgleft_map1.cols )
+                if( xl < 0 || xl >= env.left_rectified.cols )
                     continue;
 
 #if ENABLED(DEBUG_CORRESPONDENCES)
@@ -1033,7 +1089,7 @@ size_t triangulate( StereoMatchEnv& env )
                 cv::circle( left_debug, cv::Point(xl,yl),10,CV_RGB(255,0,0), 3 );
                 cv::circle( right_debug, cv::Point(xr,yr_i),10,CV_RGB(255,0,0), 3 );
 
-                StereoMatch::Render::show_image( render_stereo(left_debug,right_debug), 0.3);
+                WASS::Render::show_image( WASS::Render::render_stereo(left_debug,right_debug), 0.3);
                 //continue;
 #endif
                 dbg_R0.at<unsigned char>( yr_i,xr ) = env.right_rectified.at<unsigned char>(yr_i,xr);
@@ -1042,6 +1098,7 @@ size_t triangulate( StereoMatchEnv& env )
                 cv::Vec2d pi = env.unrectify( cv::Vec2d(xl,yl), true );
                 cv::Vec2d qi = env.unrectify( cv::Vec2d(xr,yr_i), false );
 
+                //std::cout << "pi: " << pi << std::endl << "qi: " << qi << std::endl;
 
                 cv::Vec2d p( (pi[0]-env.intrinsics_left.at<double>(0,2)) / env.intrinsics_left.at<double>(0,0), (pi[1]-env.intrinsics_left.at<double>(1,2)) / env.intrinsics_left.at<double>(1,1) );
                 cv::Vec2d q( (qi[0]-env.intrinsics_right.at<double>(0,2)) / env.intrinsics_right.at<double>(0,0),(qi[1]-env.intrinsics_right.at<double>(1,2)) / env.intrinsics_right.at<double>(1,1));
@@ -1391,7 +1448,7 @@ bool refine_flow( StereoMatchEnv& env )
                 for( int IDX=0; IDX<num_results; ++IDX )
                 {
                     const double dist = out_dist_sqr[IDX];
-                    if( dist<1E-5 ) 
+                    if( dist<1E-5 )
                     {
                         fval = env.pKDT_coarse_flow->cloud.pts[ ret_index[IDX] ].flow;
                         wsum = 1.0f;
