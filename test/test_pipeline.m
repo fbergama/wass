@@ -140,7 +140,7 @@ fprintf('***************************************************\n');
 tic;
 
 for ii=1:numel(input_frames)
-    assert( system( [ENV_SET, STEREO_EXE, ' ', CONFIG_DIR, 'stereo_config.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
+    assert( system( [ENV_SET, STEREO_EXE, ' ', CONFIG_DIR, 'stereo_config_newrectify.txt ', input_frames{ii}.wd] ) == 0, 'component exited with non-zero return code');
 end
 
 fprintf('***************************************************\n');

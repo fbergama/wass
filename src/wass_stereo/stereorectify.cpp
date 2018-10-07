@@ -102,8 +102,8 @@ void stereoRectifyUndistorted( const cv::Matx33d K0,
             double v2 =  _H1(2,0)*_H1(2,0) +  _H1(2,1)*_H1(2,1);
 
             // For numerical stability, H0 and H1 are normalized so that det(H)=1
-            _H0 = _H0 * (1.0/cv::determinant( _H0 ));
-            _H1 = _H1 * (1.0/cv::determinant( _H1 ));
+            _H0 = _H0 * (1.0/std::cbrt(cv::determinant( _H0 )));
+            _H1 = _H1 * (1.0/std::cbrt(cv::determinant( _H1 )));
 
             return std::max( v1 , v2 );
         }
@@ -199,6 +199,8 @@ void stereoRectifyUndistorted( const cv::Matx33d K0,
 
     H0 = Sc0*Tr0*H0;
     H1 = Sc1*Tr1*H1;
+    H0 = H0 * (1.0/std::cbrt(cv::determinant( H0 )));
+    H1 = H1 * (1.0/std::cbrt(cv::determinant( H1 )));
 
     // Compute ROI
     // NOTE: This is not the maximal common region
