@@ -28,5 +28,5 @@ echo Mapping $DATA_CONF_DIR to /DATA_CONF
 echo Mapping $DATA_IN_DIR to /DATA_IN
 echo Mapping $DATA_OUT_DIR to /DATA_OUT
 
-sudo docker run -p 8080:8080 -e LOCAL_USER_ID=`id -u $USER` -v $DATA_CONF_DIR:/DATA_CONF -v $DATA_IN_DIR:/DATA_IN -v $DATA_OUT_DIR:/DATA_OUT -i -t  wass
+docker run -p 8080:8080 -e LOCAL_USER_ID=`id -u $USER` -v $DATA_CONF_DIR:/DATA_CONF -v $DATA_IN_DIR:/DATA_IN -v $DATA_OUT_DIR:/DATA_OUT -i -t  wass
 
