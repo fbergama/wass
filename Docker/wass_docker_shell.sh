@@ -18,4 +18,8 @@ if [ -d "$DATA_OUT_DIR" ]; then
     MAPPINGPARAMS+=( -v $DATA_OUT_DIR:/DATA_OUT)
 fi
 
+if [ -z "$MAPPINGPARAMS" ]; then
+    echo "Note: you can run this script with $0 <CONF_DIR> <DATA_IN_DIR> <DATA_OUT_DIR>"
+fi
+
 docker run -p 8080:8080 -e LOCAL_USER_ID=`id -u $USER` "${MAPPINGPARAMS[@]}" -i -t --entrypoint /wass/WASSjs/spawn_shell.sh  wass
