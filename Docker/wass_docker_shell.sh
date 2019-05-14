@@ -1,3 +1,5 @@
+#!/bin/bash
+
 MAPPINGPARAMS=()
 
 DATA_CONF_DIR=$1
