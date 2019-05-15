@@ -126,7 +126,7 @@ struct PointCloud
     {
         const T d0=p1[0]-pts[idx_p2].x;
         const T d1=p1[1]-pts[idx_p2].y;
-        
+
         if( size==1 )
             return d0*d0;
 
@@ -152,16 +152,16 @@ struct PointCloud
 
 typedef KDTreeSingleIndexAdaptor< L2_Simple_Adaptor< float, PointCloud<float> > ,
                                   PointCloud< float >,
-                                  2  
+                                  2
                                   > my_kd_tree_t;
 
 
 class KDTreeImpl
 {
-public: 
+public:
     KDTreeImpl() : tree( 2, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */) )
     {
-    
+
     }
     PointCloud<float> cloud;
     my_kd_tree_t tree;
@@ -1391,7 +1391,7 @@ bool refine_flow( StereoMatchEnv& env )
                 for( int IDX=0; IDX<num_results; ++IDX )
                 {
                     const double dist = out_dist_sqr[IDX];
-                    if( dist<1E-5 ) 
+                    if( dist<1E-5 )
                     {
                         fval = env.pKDT_coarse_flow->cloud.pts[ ret_index[IDX] ].flow;
                         wsum = 1.0f;
@@ -1691,7 +1691,14 @@ int main( int argc, char* argv[] )
             cv::cvtColor(env.right_rectified.clone(),r_temp, CV_GRAY2RGB);
             cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
             cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
-            cv::imwrite( (env.workdir/"stereo.jpg").string(), WASS::Render::render_stereo(l_temp,r_temp) );
+
+            cv::Mat Istereo = WASS::Render::render_stereo(l_temp,r_temp);
+            for( size_t ii=0; ii<Istereo.rows; ii+=20 )
+            {
+                cv::line( Istereo, cv::Point(0,ii), cv::Point(Istereo.cols-1,ii), CV_RGB(255,0,0), 1 );
+            }
+
+            cv::imwrite( (env.workdir/"stereo.jpg").string(), Istereo );
         }
 
         if(  argc==4 && std::string("--measure").compare(  std::string(argv[3]) ) == 0 )
