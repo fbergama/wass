@@ -18,6 +18,23 @@ Use the following links to get detailed installation instructions for your syste
 - [Windows](#windows)
 - [Docker](#docker)
 
+
+***Important Note:***
+
+Since from version 4.x the OpenCV library dropped the support of the old C API, part of the WASS
+pipeline can no longer be compiled without "downgrading" to 3.x branch. To be sure of having a tested and working
+WASS system, please consider to install it as a Docker container as described [here](#docker).
+
+Advantages of using the containerized version:
+
+- No need to manually compile and install all the required dependencies for your system (everything is done by the Dockerfile script)
+- You'll have a tested and repeatable ecosystem across different platforms
+- Easily setup in/out/config directories via Docker volumes (bash scripts provided)
+
+If you already have Docker up an running, you can quickly skip to the [Docker installation instructions](#docker).
+
+
+
 ## Pre-requisites
 
 WASS relies to the following 3rd party components:
@@ -112,8 +129,11 @@ WASS should be installed and configured. You can proceed with [testing the pipel
 
 # Mac OSX
 
+We suggest to install [Docker Desktop](https://www.docker.com/products/docker-desktop) (free registration required)
+and proceed to the [Docker installation instructions](#docker).
+
 *** NOTE: the following procedure was tested on Mac OS X 10.11.5 (El Capitan)
-but should be valid on any relatively modern version of Mac OSX.***
+but should be valid on any relatively modern version of Mac OSX matching the required libraries***
 
 The easiest way to install all the required libraries is via
 [Homebrew](http://brew.sh).  If brew is not already installed, follow the
@@ -252,7 +272,7 @@ cd wass
 ## Build the docker image
 
 ```
-sudo ./Docker/docker_build.sh
+sudo ./Docker/wass_docker_build.sh
 ```
 
 This usually requires root permissions but may vary depending on your Docker installation
@@ -264,9 +284,23 @@ located in a folder named ```<config>```, the input data in a folder named ```<i
 the output data to be placed in ```<out>```, just run WASS with:
 
 ```
-$ ./Docker/docker_run.sh <config> <in> <out>
+$ ./Docker/wass_docker_run.sh <config> <in> <out>
 ```
 
-And open your browser to http://localhost:8080
+And open your browser to http://localhost:8080. Additionally, you can spawn a shell inside the wass
+Docker container with the command:
+
+```
+$ ./Docker/wass_docker_shell.sh
+```
+
+and use the pipeline manually.
+
+## settings.json and worksession.json config files
+
+Files inside the container are not preserved if modified. If you need to make changes
+to ```settings.json``` or ```worksession.json``` just copy those files in the ```<config>``` directory.
+Upon bootstrapping, they will be copied to the correct location inside the container.
+
 
 
