@@ -3,12 +3,12 @@
   "version": "0.1.0",
   "description": "WASS offical homepage/documentation",
   "dependencies": {
-    "docpad": "~6.78.6",
-    "docpad-plugin-eco": "~2.1.0",
-    "docpad-plugin-livereload": "~2.7.1",
-    "docpad-plugin-marked": "~2.3.0",
+    "docpad": "~6.82.5",
+    "docpad-plugin-eco": "~2.3.0",
+    "docpad-plugin-livereload": "~2.10.0",
+    "docpad-plugin-marked": "~2.5.0",
     "docpad-plugin-menu": "~2.1.0",
-    "docpad-plugin-partials": "~2.9.2"
+    "docpad-plugin-partials": "~2.13.0"
   },
   "main": "node_modules/.bin/docpad-server",
   "scripts": {
