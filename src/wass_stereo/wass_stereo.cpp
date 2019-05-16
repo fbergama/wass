@@ -67,6 +67,9 @@ INCFG_REQUIRE( double, PLANE_MAX_DISTANCE, 1.5, "Maximum point-plane distance al
 INCFG_REQUIRE( bool, SAVE_AS_PLY, false, "Save final reconstructed point cloud also in PLY format" )
 INCFG_REQUIRE( bool, SAVE_COMPRESSED, true, "Save in 16-bit compressed format" )
 
+INCFG_REQUIRE( bool, USE_CUSTOM_STEREORECTIFY, false, "Use built-in stereorectify algorithm instead of the one provided by OpenCV" )
+INCFG_REQUIRE( bool, DISABLE_RECTIFY_ROI, false, "Disable automatic ROI computation during stereo rectification (only enabled if USE_CUSTOM_STEREORECTIFY=true)" )
+
 #ifdef WASS_ENABLE_OPTFLOW
 INCFG_REQUIRE( bool, USE_OPTICAL_FLOW, false, "Use optical flow for 3D reconstruction (experimental)" )
 INCFG_REQUIRE( int, FLOW_REFINEMENT_FULLRES_ITERATIONS, 200, "Number of iterations for flow refinement" )
@@ -233,17 +236,18 @@ struct StereoMatchEnv
     cv::Matx33d H0i;
     cv::Matx33d H1;
     cv::Matx33d H1i;
-    //cv::Mat rec_R1;
-    //cv::Mat rec_R2;
-    //cv::Mat rec_P1;
-    //cv::Mat rec_P2;
-    //cv::Mat Q;
     cv::Rect roi_comb_left;
     cv::Rect roi_comb_right;
-    //cv::Mat imgleft_map1;
-    //cv::Mat imgleft_map2;
-    //cv::Mat imgright_map1;
-    //cv::Mat imgright_map2;
+
+    cv::Mat rec_R1;
+    cv::Mat rec_R2;
+    cv::Mat rec_P1;
+    cv::Mat rec_P2;
+    cv::Mat Q;
+    cv::Mat imgleft_map1;
+    cv::Mat imgleft_map2;
+    cv::Mat imgright_map1;
+    cv::Mat imgright_map2;
 
     // Stereo data
     cv::Mat disparity;
@@ -282,25 +286,29 @@ struct StereoMatchEnv
 
     inline cv::Vec2d unrectify( const cv::Vec2d& uv, const bool use_left ) const
     {
-        cv::Vec3d uvr = (use_left ? H0i : H1i ) * cv::Vec3d( uv[0], uv[1], 1 );
-        return cv::Vec2d( uvr[0] / uvr[2], uvr[1] / uvr[2] );
-#if 0
-        const cv::Mat& intr = use_left? intrinsics_left : intrinsics_right;
-        const cv::Matx33d R = use_left? (cv::Matx33d)rec_R1 : (cv::Matx33d)rec_R2;
-        const cv::Mat& newintr = use_left ? rec_P1 : rec_P2;
+        if( INCFG_GET( USE_CUSTOM_STEREORECTIFY ) )
+        {
+            cv::Vec3d uvr = (use_left ? H0i : H1i ) * cv::Vec3d( uv[0], uv[1], 1 );
+            return cv::Vec2d( uvr[0] / uvr[2], uvr[1] / uvr[2] );
+        }
+        else
+        {
+            const cv::Mat& intr = use_left? intrinsics_left : intrinsics_right;
+            const cv::Matx33d R = use_left? (cv::Matx33d)rec_R1 : (cv::Matx33d)rec_R2;
+            const cv::Mat& newintr = use_left ? rec_P1 : rec_P2;
 
 
-        cv::Vec3d xyw = cv::Vec3d( (uv[0]-newintr.at<double>(0,2))/newintr.at<double>(0,0),
-                                   (uv[1]-newintr.at<double>(1,2))/newintr.at<double>(1,1),
-                                   1.0);
+            cv::Vec3d xyw = cv::Vec3d( (uv[0]-newintr.at<double>(0,2))/newintr.at<double>(0,0),
+                    (uv[1]-newintr.at<double>(1,2))/newintr.at<double>(1,1),
+                    1.0);
 
-        xyw = R.t()*xyw;
-        xyw[0]/=xyw[2];
-        xyw[1]/=xyw[2];
+            xyw = R.t()*xyw;
+            xyw[0]/=xyw[2];
+            xyw[1]/=xyw[2];
 
-        return cv::Vec2d( xyw[0]*intr.at<double>(0,0) + intr.at<double>(0,2),
-                          xyw[1]*intr.at<double>(1,1) + intr.at<double>(1,2));
-#endif
+            return cv::Vec2d( xyw[0]*intr.at<double>(0,0) + intr.at<double>(0,2),
+                    xyw[1]*intr.at<double>(1,1) + intr.at<double>(1,2));
+        }
     }
 
     void computeP( )
@@ -470,96 +478,112 @@ bool rectify( StereoMatchEnv& env )
 
     cv::Size imgsize( env.left.cols, env.left.rows );
     cv::Rect ROI;
-    stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.H0, env.H1, ROI);
 
-    env.roi_comb_left = ROI;
-    env.roi_comb_right = ROI;
-    env.H0i = env.H0.inv();
-    env.H1i = env.H1.inv();
-
-    cv::warpPerspective( env.left, env.left_rectified, env.H0, imgsize );
-    cv::warpPerspective( env.right, env.right_rectified, env.H1, imgsize );
-
-    env.left_crop = env.left_rectified(env.roi_comb_left).clone();
-    env.right_crop = env.right_rectified(env.roi_comb_right).clone();
-
-#if 0
-
-    cv::Rect roi_left;
-    cv::Rect roi_right;
-
-    do
+    if( INCFG_GET( USE_CUSTOM_STEREORECTIFY ) )
     {
-        cv::stereoRectify( env.intrinsics_left, env.undist, env.intrinsics_right, env.undist, imgsize, env.R, env.T, env.rec_R1, env.rec_R2, env.rec_P1, env.rec_P2, env.Q, 0, 1.0, imgsize, &(roi_left), &(roi_right) );
-        //std::cout << "P1: " << rec_P1 << std::endl;
-        //std::cout << "P2: " << rec_P2 << std::endl;
-        //std::cout << "Q: " << Q << std::endl;
+        LOGI << "Using WASS custom stereorectify";
 
-        if( fabs(env.rec_P2.at<double>(0,3)) < fabs(env.rec_P2.at<double>(1,3)) ) {
-            LOGE << "vertical stereo not supported";
-            return false;
-        }
+        stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.H0, env.H1, ROI);
 
-        if( roi_left.width == 0 || roi_right.width==0 || roi_left.height==0 || roi_right.height == 0 ) {
-            LOGE << "the epipole lies inside the image plane";
-            return false;
-        }
+        env.H0i = env.H0.inv();
+        env.H1i = env.H1.inv();
 
-        if( auto_swap )
+        cv::warpPerspective( env.left, env.left_rectified, env.H0, imgsize );
+        cv::warpPerspective( env.right, env.right_rectified, env.H1, imgsize );
+
+        env.roi_comb_left = ROI;//cv::Rect(0,0,env.left_rectified.cols, env.left_rectified.rows);//ROI;
+        env.roi_comb_right = ROI;//cv::Rect(0,0,env.right_rectified.cols, env.right_rectified.rows);//ROI;
+
+        if( INCFG_GET( DISABLE_RECTIFY_ROI ) )
         {
-            if( env.rec_P2.at<double>(0,3) < 0 )
-            {
-                //swap left/right
-                LOGI << "auto-swapping left-right images" << std::endl;
-                env.swapLeftRight();
-            } else
-            {
-                rectification_ok = true;
-            }
+            env.roi_comb_left = cv::Rect(0,0,env.left_rectified.cols, env.left_rectified.rows);
+            env.roi_comb_right =  cv::Rect(0,0,env.right_rectified.cols, env.right_rectified.rows);
         }
-        else
-        {
-            if( do_swap )
-            {
-                LOGI << "swapping left-right images as requested";
-                env.swapLeftRight();
-                do_swap=false;
 
-            } else
-            {
-                rectification_ok=true;
-            }
-
-        }
-    } while( !rectification_ok );
-
-
-    int ymin = roi_left.y>roi_right.y?roi_left.y:roi_right.y;
-    int ymax = (roi_left.y+roi_left.height)<(roi_right.y+roi_right.height)?(roi_left.y+roi_left.height):(roi_right.y+roi_right.height);
-
-    env.roi_comb_left = cv::Rect( roi_left.x, ymin, roi_left.width, ymax-ymin);
-    env.roi_comb_right = cv::Rect( roi_right.x, ymin, roi_right.width, ymax-ymin);
-
-    if( env.roi_comb_left.width > env.roi_comb_right.width ) {
-        // Crop left
-        env.roi_comb_left.width = env.roi_comb_right.width;
-    } else {
-        // Crop right
-        env.roi_comb_right.width = env.roi_comb_left.width;
+        env.left_crop = env.left_rectified(env.roi_comb_left).clone();
+        env.right_crop = env.right_rectified(env.roi_comb_right).clone();
     }
+    else
+    {
+
+        LOGI << "Rectifying via cv::stereoRectify";
+
+        cv::Rect roi_left;
+        cv::Rect roi_right;
+        bool rectification_ok = false;
+
+        do
+        {
+            cv::stereoRectify( env.intrinsics_left, env.undist, env.intrinsics_right, env.undist, imgsize, env.R, env.T, env.rec_R1, env.rec_R2, env.rec_P1, env.rec_P2, env.Q, 0, 1.0, imgsize, &(roi_left), &(roi_right) );
+            //std::cout << "P1: " << rec_P1 << std::endl;
+            //std::cout << "P2: " << rec_P2 << std::endl;
+            //std::cout << "Q: " << Q << std::endl;
+
+            if( fabs(env.rec_P2.at<double>(0,3)) < fabs(env.rec_P2.at<double>(1,3)) ) {
+                LOGE << "vertical stereo not supported";
+                return false;
+            }
+
+            if( roi_left.width == 0 || roi_right.width==0 || roi_left.height==0 || roi_right.height == 0 ) {
+                LOGE << "the epipole lies inside the image plane";
+                return false;
+            }
+
+            if( auto_swap )
+            {
+                if( env.rec_P2.at<double>(0,3) < 0 )
+                {
+                    //swap left/right
+                    LOGI << "auto-swapping left-right images" << std::endl;
+                    env.swapLeftRight();
+                } else
+                {
+                    rectification_ok = true;
+                }
+            }
+            else
+            {
+                if( do_swap )
+                {
+                    LOGI << "swapping left-right images as requested";
+                    env.swapLeftRight();
+                    do_swap=false;
+
+                } else
+                {
+                    rectification_ok=true;
+                }
+
+            }
+        } while( !rectification_ok );
 
 
-    cv::initUndistortRectifyMap( env.intrinsics_left, env.undist, env.rec_R1, env.rec_P1, imgsize, CV_32FC1, env.imgleft_map1, env.imgleft_map2 );
-    cv::initUndistortRectifyMap( env.intrinsics_right, env.undist, env.rec_R2, env.rec_P2, imgsize, CV_32FC1, env.imgright_map1, env.imgright_map2 );
+        int ymin = roi_left.y>roi_right.y?roi_left.y:roi_right.y;
+        int ymax = (roi_left.y+roi_left.height)<(roi_right.y+roi_right.height)?(roi_left.y+roi_left.height):(roi_right.y+roi_right.height);
 
-    cv::remap( env.left, env.left_rectified, env.imgleft_map1, env.imgleft_map2, cv::INTER_CUBIC );
-    cv::remap( env.right, env.right_rectified, env.imgright_map1, env.imgright_map2, cv::INTER_CUBIC );
+        env.roi_comb_left = cv::Rect( roi_left.x, ymin, roi_left.width, ymax-ymin);
+        env.roi_comb_right = cv::Rect( roi_right.x, ymin, roi_right.width, ymax-ymin);
+
+        if( env.roi_comb_left.width > env.roi_comb_right.width ) {
+            // Crop left
+            env.roi_comb_left.width = env.roi_comb_right.width;
+        } else {
+            // Crop right
+            env.roi_comb_right.width = env.roi_comb_left.width;
+        }
 
 
-    env.left_crop = env.left_rectified(env.roi_comb_left).clone();
-    env.right_crop = env.right_rectified(env.roi_comb_right).clone();
+        cv::initUndistortRectifyMap( env.intrinsics_left, env.undist, env.rec_R1, env.rec_P1, imgsize, CV_32FC1, env.imgleft_map1, env.imgleft_map2 );
+        cv::initUndistortRectifyMap( env.intrinsics_right, env.undist, env.rec_R2, env.rec_P2, imgsize, CV_32FC1, env.imgright_map1, env.imgright_map2 );
 
-#endif
+        cv::remap( env.left, env.left_rectified, env.imgleft_map1, env.imgleft_map2, cv::INTER_CUBIC );
+        cv::remap( env.right, env.right_rectified, env.imgright_map1, env.imgright_map2, cv::INTER_CUBIC );
+
+
+        env.left_crop = env.left_rectified(env.roi_comb_left).clone();
+        env.right_crop = env.right_rectified(env.roi_comb_right).clone();
+
+    }
     LOGI << "rectification map generated";
     return true;
 }
@@ -870,6 +894,14 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     // Now in disp_float_fullsize we have a good resized disparity map.
     //
+    //
+
+    if( INCFG_GET(DISABLE_RECTIFY_ROI) && INCFG_GET(USE_CUSTOM_STEREORECTIFY ) )
+    {
+        cv::Mat mask = env.right_rectified==0;
+        //disp_float_fullsize.setTo(0,mask);
+    }
+
     aux = disp_float_fullsize.clone();
     if( INCFG_GET(MEDIAN_FILTER_WSIZE) >=3 )
     {
@@ -922,6 +954,7 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     env.disparity = cv::Mat::zeros( env.right_rectified.rows, env.right_rectified.cols, CV_32FC1 );
     disp_float_fullsize.copyTo( env.disparity(env.roi_comb_right) );
+
 
     //{
     //    save_matrix<float>("disp_raw.dat", env.disparity );
@@ -1098,6 +1131,10 @@ size_t triangulate( StereoMatchEnv& env )
                 cv::Vec2d pi = env.unrectify( cv::Vec2d(xl,yl), true );
                 cv::Vec2d qi = env.unrectify( cv::Vec2d(xr,yr_i), false );
 
+                // Check if pi or qi falls outside the image (can happen when ROI is disabled)
+                if( pi[0]<1 || pi[0]>=env.left.cols-1 || pi[1]<1 || pi[1]>=env.left.rows-1 ||  qi[0]<1 || qi[0]>=env.right.cols-1 || qi[1]<1 || qi[1]>=env.right.rows-1 )
+                    continue;
+
                 //std::cout << "pi: " << pi << std::endl << "qi: " << qi << std::endl;
 
                 cv::Vec2d p( (pi[0]-env.intrinsics_left.at<double>(0,2)) / env.intrinsics_left.at<double>(0,0), (pi[1]-env.intrinsics_left.at<double>(1,2)) / env.intrinsics_left.at<double>(1,1) );
@@ -1159,9 +1196,11 @@ size_t triangulate( StereoMatchEnv& env )
                 std::cout << pi << std::endl;
                 std::cout << cv::norm(pi-p3d_reproj) << std::endl;
                 */
+
                 double reproj_error = cv::norm(pi-p3d_reproj0);
-                if( reproj_error>0.5 ) // Maximum reprojection error allowed
+                if( reproj_error>1.0 ) // Maximum reprojection error allowed
                     continue;
+
                 /**/
 
                 // New iterative method (not working right now)
@@ -1174,7 +1213,6 @@ size_t triangulate( StereoMatchEnv& env )
                 const double ptdistance = cv::norm( p3d );
                 if( ptdistance < env.cam_distance/10.0 ||  ptdistance > env.cam_distance*200.0)
                     continue;
-
 
                 mean_reproj_error += reproj_error;
                 const unsigned char R = env.right.at<unsigned char>( (int)qi[1], (int)qi[0] );
@@ -1748,7 +1786,14 @@ int main( int argc, char* argv[] )
             cv::cvtColor(env.right_rectified.clone(),r_temp, CV_GRAY2RGB);
             cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
             cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
-            cv::imwrite( (env.workdir/"stereo.jpg").string(), WASS::Render::render_stereo(l_temp,r_temp) );
+
+            cv::Mat Istereo = WASS::Render::render_stereo(l_temp,r_temp);
+            for( size_t ii=0; ii<Istereo.rows; ii+=20 )
+            {
+                cv::line( Istereo, cv::Point(0,ii), cv::Point(Istereo.cols-1,ii), CV_RGB(255,0,0), 1 );
+            }
+
+            cv::imwrite( (env.workdir/"stereo.jpg").string(), Istereo );
         }
 
         if(  argc==4 && std::string("--measure").compare(  std::string(argv[3]) ) == 0 )

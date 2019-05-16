@@ -33,8 +33,10 @@ WASS was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/)
 
 # Citing
 
-We recently published a [paper](/wass/papers/1-s2.0-S0098300417304302-main.pdf) covering all the internal details of our
-pipeline: 
+We recently published a
+[paper](/wass/papers/1-s2.0-S0098300417304302-main.pdf), awarded as ["Best Paper
+of 2017"](https://www.journals.elsevier.com/computers-and-geosciences/news/winners-of-the-2017-best-paper-award) of the Journal [Computer and Geosciences](https://www.journals.elsevier.com/computers-and-geosciences) covering all the internal
+details of our pipeline: 
 
 
 ```
