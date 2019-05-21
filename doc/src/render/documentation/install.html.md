@@ -147,7 +147,7 @@ brew update
 brew install cmake
 brew install boost
 brew install webp
-brew install homebrew/science/opencv3
+brew install opencv@3
 ```
 
 to install [CMake](https://cmake.org), [Boost](http://www.boost.org) and 
@@ -181,7 +181,7 @@ To build the wass pipeline programs, on the same terminal, enter the commands:
 ```
 mkdir build
 cd build
-cmake ../src/ -DOpenCV_DIR="/usr/local/opt/opencv3/share/OpenCV"
+cmake ../src/ -DOpenCV_DIR="/usr/local/opt/opencv@3/<version>/share/OpenCV"
 make
 make install
 ```

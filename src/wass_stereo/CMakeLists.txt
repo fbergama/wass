@@ -35,9 +35,11 @@ add_executable( ${PROJECT_NAME} wass_stereo.cpp
                                 )
 
 if(MSVC)
-target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS}  wass_lib )
+    target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS}  wass_lib )
 else()
-target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS} ${Boost_LIBRARIES} wass_lib )
+    set(THREADS_PREFER_PTHREAD_FLAG ON)
+    find_package(Threads REQUIRED)
+    target_link_libraries( ${PROJECT_NAME} Threads::Threads ${OpenCV_LIBS} ${Boost_LIBRARIES} wass_lib )
 endif()
 
 INSTALL( TARGETS ${PROJECT_NAME} DESTINATION bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE )
