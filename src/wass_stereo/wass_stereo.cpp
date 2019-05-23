@@ -1029,8 +1029,15 @@ size_t triangulate( StereoMatchEnv& env )
     cv::Matx34d Pc1 = env.P1;
     cv::Mat dbg_P0 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
     cv::Mat dbg_P1 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
-    cv::Mat dbg_R0 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
-    cv::Mat dbg_R1 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC1 );
+    cv::Mat dbg_R0 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC3 );
+    cv::Mat dbg_R1 = cv::Mat::zeros( env.right.rows, env.right.cols, CV_8UC3 );
+
+    const cv::Vec3b COLOR_CODE_POINT_OUTSIDE_IMAGE(255,255,0);  //Teal
+    const cv::Vec3b COLOR_CODE_POINT_OUTSIDE_BBOX(0,255,255);   //Yellow
+    const cv::Vec3b COLOR_CODE_POINT_TOO_CLOSE(255,0,0); //Blue
+    const cv::Vec3b COLOR_CODE_POINT_TOO_DISTANT(0,0,255); //Red
+    const cv::Vec3b COLOR_CODE_POINT_ANGLE_CHECK_FAIL(0,255,0); //Green
+    const cv::Vec3b COLOR_CODE_POINT_HIGH_REPROJECTION_ERROR(255,255,255); //White
 
 #endif
 
@@ -1125,15 +1132,22 @@ size_t triangulate( StereoMatchEnv& env )
                 WASS::Render::show_image( WASS::Render::render_stereo(left_debug,right_debug), 0.3);
                 //continue;
 #endif
-                dbg_R0.at<unsigned char>( yr_i,xr ) = env.right_rectified.at<unsigned char>(yr_i,xr);
-                dbg_R1.at<unsigned char>( yr_i,xr ) = env.left_rectified.at<unsigned char>( std::floor(yl+0.5), std::floor(xl+0.5) );
+                const unsigned char val_r0 = env.right_rectified.at<unsigned char>(yr_i,xr);
+                const unsigned char val_r1 = env.left_rectified.at<unsigned char>( std::floor(yl+0.5), std::floor(xl+0.5) );
+
+                dbg_R0.at< cv::Vec3b >( yr_i,xr ) = cv::Vec3b(val_r0,val_r0,val_r0);
+                dbg_R1.at< cv::Vec3b >( yr_i,xr ) = cv::Vec3b(val_r1,val_r1,val_r1);
 
                 cv::Vec2d pi = env.unrectify( cv::Vec2d(xl,yl), true );
                 cv::Vec2d qi = env.unrectify( cv::Vec2d(xr,yr_i), false );
 
                 // Check if pi or qi falls outside the image (can happen when ROI is disabled)
                 if( pi[0]<1 || pi[0]>=env.left.cols-1 || pi[1]<1 || pi[1]>=env.left.rows-1 ||  qi[0]<1 || qi[0]>=env.right.cols-1 || qi[1]<1 || qi[1]>=env.right.rows-1 )
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_IMAGE;
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_IMAGE;
                     continue;
+                }
 
                 //std::cout << "pi: " << pi << std::endl << "qi: " << qi << std::endl;
 
@@ -1142,7 +1156,11 @@ size_t triangulate( StereoMatchEnv& env )
 
                 if( pi[0] <= bbox_topleft[0]  || pi[1] <=bbox_topleft[1] ||
                     pi[0] >= bbox_botright[0] || pi[1] >=bbox_botright[1] )
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
                     continue;
+                }
 
 
                 // Angle check
@@ -1153,6 +1171,8 @@ size_t triangulate( StereoMatchEnv& env )
                     double ang = fabs( acos( d1.ddot(d2) )*57.29577951 );
                     if( ang<min_angle )
                     {
+                        dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_ANGLE_CHECK_FAIL;
+                        dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_ANGLE_CHECK_FAIL;
                         continue;
                     }
                 }
@@ -1199,7 +1219,11 @@ size_t triangulate( StereoMatchEnv& env )
 
                 double reproj_error = cv::norm(pi-p3d_reproj0);
                 if( reproj_error>1.0 ) // Maximum reprojection error allowed
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_HIGH_REPROJECTION_ERROR;
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_HIGH_REPROJECTION_ERROR;
                     continue;
+                }
 
                 /**/
 
@@ -1211,8 +1235,18 @@ size_t triangulate( StereoMatchEnv& env )
 
                 // point distance check
                 const double ptdistance = cv::norm( p3d );
-                if( ptdistance < env.cam_distance/10.0 ||  ptdistance > env.cam_distance*200.0)
+                if( ptdistance < env.cam_distance/10.0 )
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_CLOSE;
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_CLOSE;
                     continue;
+                }
+                if( ptdistance > env.cam_distance*200.0)
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_DISTANT;
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_DISTANT;
+                    continue;
+                }
 
                 mean_reproj_error += reproj_error;
                 const unsigned char R = env.right.at<unsigned char>( (int)qi[1], (int)qi[0] );
