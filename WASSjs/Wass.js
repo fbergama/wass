@@ -29,6 +29,11 @@ var sprintf = require("sprintf-js").sprintf;
 var ioRedis = require('ioredis');
 
 
+var kuesettings = { redis:'redis://localhost:6379' }
+
+if( process.env.REDISADDR ) {
+    var kuesettings = { redis:'redis://'+process.env.REDISADDR }
+}
 
 
 
@@ -339,7 +344,7 @@ Q.when( extexe_sanity_check(settings), function() {
     var start_time = Date.now();
     var elapsed = Date.now() - start_time;
 
-    var mainq = kue.createQueue();
+    var mainq = kue.createQueue( kuesettings );
     var qlen = 0;
     var numfailures = 0;
 
@@ -389,7 +394,7 @@ Q.when( extexe_sanity_check(settings), function() {
 
     var start_workers = function() {
 
-        mainq = kue.createQueue();
+        mainq = kue.createQueue( kuesettings );
 
         mainq.on('job enqueue', on_enqueue );
         mainq.on('job failed',on_fail );

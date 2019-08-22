@@ -1,0 +1,22 @@
+version: '2'
+services:
+    wass:
+        user: ${UID}:${GID}
+        restart: "no"
+        image: wass:latest
+        container_name: wass
+        volumes:
+            - "./WASS_TEST/W07/config:/DATA_CONF"
+            - "./WASS_TEST/W07/input:/DATA_IN"
+            - "./out:/DATA_OUT"
+        depends_on:
+            - redis
+        environment:
+            REDISADDR: redis:6379
+        ports:
+            - 8080:8080
+    redis:
+        restart: always
+        image: redis
+        expose:
+            - 6379

@@ -1,6 +1,5 @@
 #!/bin/bash
 
-cd ext && nohup ./launch_redis.sh &
 
 if [ -f "/DATA_CONF/worksession.json" ]; then
     echo "Copying worksession.json from /DATA_CONF/"

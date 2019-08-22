@@ -11,10 +11,21 @@ It was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) a
 [http://www.dais.unive.it/wass](http://www.dais.unive.it/wass)
 
 
+## Give it a try now
+
+In Linux/OSX run: 
+
+```
+$ export UID=$(id -u) && export GID=$(id -g) && docker-compose up
+```
+
+And open your browser to [http://localhost:8080](http://localhost:8080)
+
+
 ## License
 
 ```
-Copyright (C) 2016 Filippo Bergamasco 
+Copyright (C) 2016-2020 Filippo Bergamasco 
 
 WASS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
