@@ -11,16 +11,39 @@ It was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) a
 [http://www.dais.unive.it/wass](http://www.dais.unive.it/wass)
 
 
-## Give it a try now
+## Try it via Docker
 
-In Linux/OSX run: 
+1. Install [Docker](https://www.docker.com/products/docker-desktop) and [Docker compose](https://docs.docker.com/compose/).
+2. Download the file [docker-compose.xml](https://raw.githubusercontent.com/fbergama/wass/Docker/docker-compose.yml)
+3. Download the [test data](http://www.dais.unive.it/wass/WASS_TEST_docker.zip) and unzip the package in the same directory of `docker-compose.xml`
+4. Create a directory named `out`. Your WASS working directory should contain the following: `docker-compose-yml`, `out/`, `WASS_TEST/`
 
+5. In **Linux/OSX**:
+    - open a terminal
+    - cd into the directory containing `docker-compose-yml`
+    - run the command: 
 ```
-$ export UID=$(id -u) && export GID=$(id -g) && docker-compose up
+export UID=$(id -u) && export GID=$(id -g) && docker-compose up
 ```
 
-And open your browser to [http://localhost:8080](http://localhost:8080)
+5. In **Windows**: 
+    - open the PowerShell prompt
+    - cd into the directory containing `docker-compose-yml`
+    - run the command:
+```
+docker-compose up
+```
 
+6. Open your browser to [http://localhost:8080](http://localhost:8080) and click in sequence: `prepare`,  `match`, `auto-calibrate` and `dense stereo`. The processed data will be placed in the `out` directory.
+
+
+### Run it with your data
+
+Edit the lines 13, 19 and 25 of `docker-compose-yml` (the ones with `source: "<dir>"`) to set the location of configuration, input and output directory respectively. Refer to the pipeline documentation:
+- [http://www.dais.unive.it/wass/documentation/stereo.html](http://www.dais.unive.it/wass/documentation/stereo.html)
+- [http://www.dais.unive.it/wass/documentation/matcher.html](http://www.dais.unive.it/wass/documentation/matcher.html)
+
+to properly setup the configuration files.
 
 ## License
 
@@ -40,5 +63,6 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ```
+
 
 
