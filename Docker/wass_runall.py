@@ -54,7 +54,7 @@ def run_next_task( completedtasks ):
 def do_main():
 
     pbar = tqdm( total=999, unit="frames" )
-    
+
     while True:
         time.sleep(2)
         isidle, completedtasks = refresh_status( pbar )
@@ -63,7 +63,7 @@ def do_main():
                 print("All tasks completed.")
                 return
 
-                
+
 
 
 if __name__ == "__main__":
