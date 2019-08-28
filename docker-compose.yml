@@ -30,8 +30,17 @@ services:
             REDISADDR: redis:6379
         ports:
             - 8080:8080
+        networks:
+            - network1
+
     redis:
         restart: always
         image: redis
         expose:
             - 6379
+        networks:
+            - network1
+
+networks:
+    network1:
+        name: wass-net

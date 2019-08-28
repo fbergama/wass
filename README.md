@@ -34,7 +34,12 @@ export UID=$(id -u) && export GID=$(id -g) && docker-compose up
 docker-compose up
 ```
 
-6. Open your browser to [http://localhost:8080](http://localhost:8080) and click in sequence: `prepare`,  `match`, `auto-calibrate` and `dense stereo`. The processed data will be placed in the `out` directory.
+6. Open your browser to [http://localhost:8080](http://localhost:8080) and click in sequence: `prepare`,  `match`, `auto-calibrate` and `dense stereo`. The processed data will be placed in the `out` directory. If you want to process the whole dataset without using the web interface you can run the following:
+
+```
+docker run -i -t --network wass-net bergamasco/wass:runall
+```
+
 
 
 ### Run it with your data
