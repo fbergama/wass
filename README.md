@@ -40,6 +40,12 @@ docker-compose up
 docker run -i -t --network wass-net bergamasco/wass:runall
 ```
 
+To spawn a shell inside the container:
+
+```
+docker exec -i -t  -u $(id -u):$(id -g) wass /bin/bash
+```
+
 
 
 ### Run it with your data
