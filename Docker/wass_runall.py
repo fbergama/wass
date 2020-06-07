@@ -2,7 +2,7 @@ import requests
 from tqdm import tqdm
 import time
 
-
+ADDR = 'http://wass:8080'
 last_value = 0
 last_max = 0
 
@@ -10,7 +10,7 @@ def refresh_status( pbar ):
 
     global last_max
     global last_value
-    r = requests.get('http://localhost:8080/fullstatus').json()
+    r = requests.get(ADDR+'/fullstatus').json()
 
     curr_max = int(r["progress_max"])
     curr_value = r["progress"]
@@ -36,16 +36,16 @@ def run_next_task( completedtasks ):
         if not completedtasks["matchmerge"]:
             if not completedtasks["match"]:
                 if not completedtasks["prepare"]:
-                    requests.get("http://localhost:8080/doprepare")
+                    requests.get(ADDR+"/doprepare")
                     return False
 
-                requests.get("http://localhost:8080/domatch")
+                requests.get(ADDR+"/domatch")
                 return False
 
-            requests.get("http://localhost:8080/domatchmerge")
+            requests.get(ADDR+"/domatchmerge")
             return False
 
-        requests.get("http://localhost:8080/dodense")
+        requests.get(ADDR+"/dodense")
         return False
 
     return True
@@ -54,7 +54,7 @@ def run_next_task( completedtasks ):
 def do_main():
 
     pbar = tqdm( total=999, unit="frames" )
-    
+
     while True:
         time.sleep(2)
         isidle, completedtasks = refresh_status( pbar )
@@ -63,7 +63,7 @@ def do_main():
                 print("All tasks completed.")
                 return
 
-                
+
 
 
 if __name__ == "__main__":
