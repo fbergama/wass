@@ -82,7 +82,7 @@ RUN git submodule init && git submodule update
 RUN mkdir /wass/build
 WORKDIR /wass/build
 RUN rm -Rf *
-RUN cmake ../src/ -DCMAKE_BUILD_TYPE="Release" -DOpenCV_DIR=/LIBS/opencv/build && make && make install
+RUN cmake ../src/ -DCMAKE_BUILD_TYPE="Release" -DOpenCV_DIR=/LIBS/opencv/build -DDISABLE_BOOST_LOG=ON && make && make install
 
 
 # Run npm to install all WASSjs dependencies
@@ -144,7 +144,7 @@ LABEL org.label-schema.vcs-ref=$VCS_REF
 
 RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
 
-RUN apt-get -y -qq update && apt-get -y -qq install zip libboost-system1.65.1 libboost-log1.65.1 libboost-program-options1.65.1 liblapack3 
+RUN apt-get -y -qq update && apt-get -y -qq install zip libboost-system1.65.1 libboost-log1.65.1 libboost-program-options1.65.1 liblapack3
 
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /wass/dist/bin /wass/dist/bin
