@@ -21,9 +21,6 @@ include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                       ${OpenCV_INCLUDE_DIRS}
                       )
 
-if(MSVC)
-link_directories( ${Boost_LIBRARY_DIR_RELEASE} )
-endif()
 
 add_executable( ${PROJECT_NAME} wass_stereo.cpp
                                 PovMesh.cpp
@@ -35,7 +32,7 @@ add_executable( ${PROJECT_NAME} wass_stereo.cpp
                                 )
 
 if(MSVC)
-    target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS}  wass_lib )
+    target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS} Boost::filesystem wass_lib )
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)

@@ -23,6 +23,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <iomanip>
 #include <fstream>
 #include <string>
+#include <boost/shared_ptr.hpp>
 
 #include <opencv2/core.hpp>
 #include <opencv2/highgui/highgui.hpp>

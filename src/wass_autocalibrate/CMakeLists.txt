@@ -63,9 +63,7 @@ include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                       ${SBA_INCLUDE_DIR}
                     )
 
-if(MSVC)
-link_directories( ${Boost_LIBRARY_DIR_RELEASE} )
-endif()
+
 
 add_executable( ${PROJECT_NAME} wass_autocalibrate.cpp
                                 sba_driver.cpp
@@ -75,7 +73,7 @@ add_executable( ${PROJECT_NAME} wass_autocalibrate.cpp
 
 
 if(MSVC)
-    target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} ${SBA_LIBRARY} ${LAPACK_LIBRARIES} f2c blas lapack )
+    target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} Boost::filesystem ${SBA_LIBRARY} ${LAPACK_LIBRARIES} f2c blas lapack  )
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)

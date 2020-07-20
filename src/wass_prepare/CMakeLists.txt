@@ -15,14 +15,12 @@ include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
 
 
 
-if(MSVC)
-link_directories( ${Boost_LIBRARY_DIR_RELEASE} )
-endif()
+
 
 add_executable( ${PROJECT_NAME} wass_prepare.cpp )
 
 if(MSVC)
-    target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS}  )
+    target_link_libraries( ${PROJECT_NAME} ${OpenCV_LIBS} Boost::system Boost::program_options Boost::filesystem  )
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
