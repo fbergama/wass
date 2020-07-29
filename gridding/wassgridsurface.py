@@ -15,6 +15,7 @@ import colorama
 colorama.init()
 from colorama import Fore, Back, Style
 
+from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
 WASSGRIDSURFACE_VERSION = "0.1"
@@ -126,44 +127,98 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
 
 
 def grid( wass_frames, matfile, outdir ):
+    step=50
     gridsetup = sio.loadmat( matfile )
-    #for wdir in wass_frames:
-    #    print(wdir)
-    wdir = wass_frames[0]
-
-    meshname = path.join( wdir, "mesh_cam.xyzC")
-    mesh = load_camera_mesh(meshname)
-    mesh_aligned = align_on_sea_plane_RT( mesh, gridsetup["Rpl"], gridsetup["Tpl"]) * gridsetup["CAM_BASELINE"] 
-
-    #print("Filtering mesh outliers...")
-    #mesh_aligned = filter_mesh_outliers( mesh_aligned, debug=False )
-
     XX = gridsetup["XX"]
     YY = gridsetup["YY"]
 
-    # fig = plt.figure( figsize=(20,20))
-    # plt.scatter( mesh_aligned[0,::50], mesh_aligned[1,::50], c=mesh_aligned[2,::50], vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-    # plt.gca().invert_yaxis()
-    # plt.colorbar()
-    # plt.scatter( XX.flatten(), YY.flatten(), c="k", s=0.1, marker=".")
-    # plt.axis("equal")
-    # plt.title("WASS point cloud %s"%wdir )
-    # plt.grid("minor")
-    # figfile = path.join(outdir,"area_grid2.png")
-    # fig.savefig(figfile,bbox_inches='tight')
-    # plt.close()
+    outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ) )
+    baseline = np.asscalar( gridsetup["CAM_BASELINE"] )
 
-    print("Interpolating...")
-    interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,:].T, mesh_aligned[2,:].T )
-    Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
-    Zi = np.reshape( Zi, XX.shape )
-    print("Done!")
+    outdata.scale[:] = baseline
+    outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%WASSGRIDSURFACE_VERSION )
+    outdata.add_meta_attribute("generator", "WASS" )
+    outdata.add_meta_attribute("baseline", baseline )
 
-    fig = plt.figure( figsize=(20,20))
-    plt.imshow(Zi)
-    figfile = path.join(outdir,"area_interp.png")
-    fig.savefig(figfile,bbox_inches='tight')
-    plt.close()
+    outdata.set_instrinsics( np.zeros( (3,3), dtype=np.float32),
+                             np.zeros( (3,3), dtype=np.float32),
+                             np.zeros( (5,1), dtype=np.float32),
+                             np.zeros( (5,1), dtype=np.float32),
+                             gridsetup["P0plane"])
+
+    for wdir in wass_frames:
+        print(wdir)
+        dirname = path.split( wdir )[-1]
+        FRAME_IDX = int(dirname[:-3])
+        print(FRAME_IDX)
+
+        meshname = path.join( wdir, "mesh_cam.xyzC")
+        mesh = load_camera_mesh(meshname)
+        mesh_aligned = align_on_sea_plane_RT( mesh, gridsetup["Rpl"], gridsetup["Tpl"]) * gridsetup["CAM_BASELINE"] 
+        mesh_aligned = mesh_aligned[:, np.random.permutation(mesh_aligned.shape[1]) ]
+
+        # # 3D point grid quantization
+        # scalefacx = (gridsetup["xmax"]-gridsetup["xmin"])
+        # scalefacy = (gridsetup["ymax"]-gridsetup["ymin"])
+        # pts_x = np.floor( (mesh_aligned[0,:]-gridsetup["xmin"])/scalefacx * (XX.shape[1]-1) + 0.5 ).astype(np.uint32).flatten()
+        # pts_y = np.floor( (mesh_aligned[1,:]-gridsetup["ymin"])/scalefacy * (XX.shape[0]-1) + 0.5 ).astype(np.uint32).flatten()
+        # good_pts = np.logical_and( np.logical_and( pts_x >= 0 , pts_x < XX.shape[1] ),
+        #                            np.logical_and( pts_y >= 0 , pts_y < XX.shape[0] ) )
+
+        # ZZ = np.ones( XX.shape, dtype=np.float32 )*np.nan
+        # pts_x = pts_x[good_pts]
+        # pts_y = pts_y[good_pts]
+        # pts_z = mesh_aligned[2,good_pts]
+        # ZZ[ pts_y, pts_x ] = pts_z
+
+        #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
+        #cv.imwrite( path.join(outdir,"area_interp2.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
+        #sys.exit(0)
+
+        # fig = plt.figure( figsize=(20,20))
+        # plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+        # figfile = path.join(outdir,"area_interp2.png")
+        # fig.savefig(figfile,bbox_inches='tight')
+        # plt.close()
+
+        #print("Filtering mesh outliers...")
+        #mesh_aligned = filter_mesh_outliers( mesh_aligned, debug=False )
+
+        # fig = plt.figure( figsize=(20,20))
+        # plt.scatter( mesh_aligned[0,::50], mesh_aligned[1,::50], c=mesh_aligned[2,::50], vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+        # plt.gca().invert_yaxis()
+        # plt.colorbar()
+        # plt.scatter( XX.flatten(), YY.flatten(), c="k", s=0.1, marker=".")
+        # plt.axis("equal")
+        # plt.title("WASS point cloud %s"%wdir )
+        # plt.grid("minor")
+        # figfile = path.join(outdir,"area_grid2.png")
+        # fig.savefig(figfile,bbox_inches='tight')
+        # plt.close()
+
+        print("Interpolating... ", end="")
+        interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,::step].T, mesh_aligned[2,::step].T )
+        Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
+        Zi = np.reshape( Zi, XX.shape )
+        print("done")
+
+        I0 = cv.imread( path.join(wdir,"00000000_s.png"))
+        outdata.add_meta_attribute("image_width", I0.shape[1] )
+        outdata.add_meta_attribute("image_height", I0.shape[0] )
+        ret, imgjpeg = cv.imencode(".jpg", I0 )
+        outdata.push_Z( Zi*1000, 0, FRAME_IDX, imgjpeg )
+
+        #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
+        #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
+
+        #fig = plt.figure( figsize=(20,20))
+        #plt.imshow(Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+        #fig.savefig(figfile,bbox_inches='tight')
+        #figfile = path.join(outdir,"area_interp.png")
+        #plt.close()
+
+    outdata.close()
+
 
 
 
@@ -197,7 +252,6 @@ def main():
         all_planes = np.loadtxt( planefile )
         meanplane = np.mean( all_planes, axis=0)
 
-    print("Baseline: "+Fore.RED+"%3.2f"%args.baseline + Fore.RESET)
 
 
     if not path.exists( args.outdir ):
@@ -213,6 +267,8 @@ def main():
         if not path.exists( args.gridconfig ):
             print("Not found.")
             sys.exit(-1)
+
+        print("Baseline: "+Fore.RED+"%3.2f"%args.baseline + Fore.RESET)
 
         settings = configparser.ConfigParser()
         settings.read( args.gridconfig )
@@ -235,6 +291,8 @@ def main():
         grid( wass_frames,
               matfile=args.gridsetup,
               outdir=args.outdir )
+
+        print("Gridding completed.")
         
     else:
         print("Invalid actions specified.")
