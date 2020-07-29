@@ -57,11 +57,11 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     SCALEi = 1.0/baseline
     P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
 
-    area_size_m = np.floor( area_size / 2);
-    xmin = area_center[0]-area_size_m;
-    xmax = area_center[0]+area_size_m;
-    ymin = area_center[1]-area_size_m;
-    ymax = area_center[1]+area_size_m;
+    area_size_m = np.floor( area_size / 2)
+    xmin = area_center[0]-area_size_m
+    xmax = area_center[0]+area_size_m
+    ymin = area_center[1]-area_size_m
+    ymax = area_center[1]+area_size_m
     zmax = np.quantile( mesh_aligned[2,:],0.98 )*1.5 
     zmin = np.quantile( mesh_aligned[2,:],0.02 )*1.5
 
@@ -72,17 +72,17 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
         zmax=-zmin
 
     # Meshgrid
-    XX,YY = np.meshgrid( np.linspace(xmin,xmax,N), np.linspace(ymin,ymax,N) );
-    x_spacing = XX[0,1]-XX[0,0];
-    y_spacing = YY[1,0]-YY[0,0];
-    assert( abs(x_spacing - y_spacing) < 1E-5 );
+    XX,YY = np.meshgrid( np.linspace(xmin,xmax,N), np.linspace(ymin,ymax,N) )
+    x_spacing = XX[0,1]-XX[0,0]
+    y_spacing = YY[1,0]-YY[0,0]
+    assert( abs(x_spacing - y_spacing) < 1E-5 )
 
     Nm = int( N/2 )
 
-    kx_ab = np.array( [float(i)/N*(2.0*np.pi/x_spacing)  for i in range(-Nm,Nm)] );
-    ky_ab = np.array( [float(i)/N*(2*np.pi/y_spacing)  for i in range(-Nm,Nm)] );
-    KX_ab, KY_ab = np.meshgrid( kx_ab, ky_ab);
-    spec_scale = 1.0/(N*N);
+    kx_ab = np.array( [float(i)/N*(2.0*np.pi/x_spacing)  for i in range(-Nm,Nm)] )
+    ky_ab = np.array( [float(i)/N*(2*np.pi/y_spacing)  for i in range(-Nm,Nm)] )
+    KX_ab, KY_ab = np.meshgrid( kx_ab, ky_ab)
+    spec_scale = 1.0/(N*N)
 
     print("Generating grid area plot...")
 
@@ -127,7 +127,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
 
 
 def grid( wass_frames, matfile, outdir ):
-    step=50
+    step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
     YY = gridsetup["YY"]
@@ -139,6 +139,7 @@ def grid( wass_frames, matfile, outdir ):
     outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%WASSGRIDSURFACE_VERSION )
     outdata.add_meta_attribute("generator", "WASS" )
     outdata.add_meta_attribute("baseline", baseline )
+    outdata.set_grids( XX*1000.0, YY*1000.0 )
 
     outdata.set_instrinsics( np.zeros( (3,3), dtype=np.float32),
                              np.zeros( (3,3), dtype=np.float32),
