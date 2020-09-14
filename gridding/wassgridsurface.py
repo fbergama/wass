@@ -18,7 +18,7 @@ from colorama import Fore, Back, Style
 from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
-WASSGRIDSURFACE_VERSION = "0.1"
+WASSGRIDSURFACE_VERSION = "0.2"
 
 
 
@@ -126,7 +126,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
 
 
 
-def grid( wass_frames, matfile, outdir ):
+def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -197,8 +197,18 @@ def grid( wass_frames, matfile, outdir ):
         # fig.savefig(figfile,bbox_inches='tight')
         # plt.close()
 
+        area_mask =  np.logical_and( np.logical_and( mesh_aligned[0,:]>=gridsetup["xmin"] , mesh_aligned[0,:]<=gridsetup["xmax"] ),
+                                     np.logical_and( mesh_aligned[1,:]>=gridsetup["ymin"] , mesh_aligned[1,:]<=gridsetup["ymax"] ) ) 
+
+
+        pt_indices =  np.nonzero(area_mask)[1]
+        print("%d points in the area"%pt_indices.size )
+        np.random.shuffle( pt_indices )
+        pt_indices = pt_indices[ :int(pt_indices.size*subsample_percent/100.0)]
+        print("%d points after subsampling (%d%%)"%(pt_indices.size, subsample_percent) )
+
         print("Interpolating... ", end="")
-        interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,::step].T, mesh_aligned[2,::step].T )
+        interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,pt_indices].T, mesh_aligned[2,pt_indices].T )
         Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
         Zi = np.reshape( Zi, XX.shape )
         print("done")
@@ -212,11 +222,11 @@ def grid( wass_frames, matfile, outdir ):
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
         #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
 
-        #fig = plt.figure( figsize=(20,20))
-        #plt.imshow(Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-        #fig.savefig(figfile,bbox_inches='tight')
-        #figfile = path.join(outdir,"area_interp.png")
-        #plt.close()
+        fig = plt.figure( figsize=(20,20))
+        plt.imshow(Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+        figfile = path.join(outdir,"area_interp_%08d.png"%FRAME_IDX)
+        fig.savefig(figfile,bbox_inches='tight')
+        plt.close()
 
     outdata.close()
 
@@ -237,6 +247,7 @@ def main():
     parser.add_argument("-b", "--baseline", default=1.0, type=float, help="Stereo camera distance" )
     parser.add_argument("-Iw", "--image_width", type=float, help="Camera frame width" )
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
+    parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%" )
     args = parser.parse_args()
 
 
@@ -291,7 +302,8 @@ def main():
 
         grid( wass_frames,
               matfile=args.gridsetup,
-              outdir=args.outdir )
+              outdir=args.outdir,
+              subsample_percent=args.ss )
 
         print("Gridding completed.")
         
