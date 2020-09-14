@@ -1,0 +1,13 @@
+name: wassgridding
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - matplotlib
+  - colorama
+  - scipy
+  - numpy
+  - tqdm
+  - opencv
+  - netcdf4
+prefix: C:\Users\USER\miniconda3\envs\wassgridding
