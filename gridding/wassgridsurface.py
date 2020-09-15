@@ -147,11 +147,15 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
                              np.zeros( (5,1), dtype=np.float32),
                              gridsetup["P0plane"])
 
-    for wdir in wass_frames:
-        print(wdir)
+    Zmean = 0.0
+    Zmin = np.Inf
+    Zmax = -np.Inf
+    N_frames = 1
+
+    for wdir in tqdm(wass_frames):
+        tqdm.write(wdir)
         dirname = path.split( wdir )[-1]
         FRAME_IDX = int(dirname[:-3])
-        print(FRAME_IDX)
 
         meshname = path.join( wdir, "mesh_cam.xyzC")
         mesh = load_camera_mesh(meshname)
@@ -182,7 +186,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         # fig.savefig(figfile,bbox_inches='tight')
         # plt.close()
 
-        #print("Filtering mesh outliers...")
+        #tqdm.write("Filtering mesh outliers...")
         #mesh_aligned = filter_mesh_outliers( mesh_aligned, debug=False )
 
         # fig = plt.figure( figsize=(20,20))
@@ -202,16 +206,20 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
 
 
         pt_indices =  np.nonzero(area_mask)[1]
-        print("%d points in the area"%pt_indices.size )
+        tqdm.write("%d points in the area"%pt_indices.size )
         np.random.shuffle( pt_indices )
         pt_indices = pt_indices[ :int(pt_indices.size*subsample_percent/100.0)]
-        print("%d points after subsampling (%d%%)"%(pt_indices.size, subsample_percent) )
+        tqdm.write("%d points after subsampling (%d%%)"%(pt_indices.size, subsample_percent) )
 
-        print("Interpolating... ", end="")
+        tqdm.write("Interpolating... ", end="")
         interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,pt_indices].T, mesh_aligned[2,pt_indices].T )
         Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
         Zi = np.reshape( Zi, XX.shape )
-        print("done")
+        tqdm.write("done")
+
+        Zmean = Zmean + (np.nanmean(Zi)-Zmean)/N_frames
+        Zmin = min( Zmin, np.nanmin(Zi) )
+        Zmax = max( Zmax, np.nanmax(Zi) )
 
         I0 = cv.imread( path.join(wdir,"00000000_s.png"))
         outdata.add_meta_attribute("image_width", I0.shape[1] )
@@ -222,11 +230,24 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
         #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
 
-        fig = plt.figure( figsize=(20,20))
-        plt.imshow(Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-        figfile = path.join(outdir,"area_interp_%08d.png"%FRAME_IDX)
-        fig.savefig(figfile,bbox_inches='tight')
-        plt.close()
+        # fig = plt.figure( figsize=(20,20))
+        # plt.imshow(Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+        # figfile = path.join(outdir,"area_interp_%08d.png"%FRAME_IDX)
+        # fig.savefig(figfile,bbox_inches='tight')
+        # plt.close()
+
+        N_frames += 1
+
+
+    outdata.add_meta_attribute("zmin", Zmin )
+    outdata.add_meta_attribute("zmax", Zmax )
+    outdata.add_meta_attribute("zmean", Zmean )
+
+    print("Reconstructed sequence stats: ")
+    print("    Zmin: ",Zmin)
+    print("    Zmax: ",Zmax)
+    print("   Zmean: ",Zmean)
+    print("# frames: ", N_frames)
 
     outdata.close()
 
