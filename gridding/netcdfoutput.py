@@ -45,6 +45,16 @@ class NetCDFOutput:
         self.ygrid.long_name = "Y axis grid"
         self.ygrid.field = "Y_grid, scalar, series"
 
+        self.kx = self.rootgrp.createVariable( "Kx", "f8", ("X","Y",) )
+        self.kx.units = "wavenumbers"
+        self.kx.long_name = "Horizontal wavenumbers"
+        self.kx.field = "Kx, scalar, series"
+
+        self.ky = self.rootgrp.createVariable( "Ky", "f8", ("X","Y",) )
+        self.ky.units = "wavenumbers"
+        self.ky.long_name = "Vertical wavenumbers"
+        self.ky.field = "Ky, scalar, series"
+
         self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y",) )
         self.Z.units = "millimeter"
         self.Z.long_name = "Z data on time over the XY grid"
@@ -67,11 +77,21 @@ class NetCDFOutput:
         self.xgrid[:] = XX
         self.ygrid[:] = YY
 
+    
+    def set_kxky( self, kx, ky ):
+        if self.rootgrp == None:
+            return
+
+        self.kx[:] = kx
+        self.ky[:] = ky
+
+
     def set_mask( self, maskZ ):
         if self.rootgrp == None:
             return
 
         self.maskZ[:] = maskZ
+
 
     def set_instrinsics( self, K0, K1, kc0, kc1, P0plane ):
         if self.rootgrp == None:

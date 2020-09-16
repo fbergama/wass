@@ -22,7 +22,7 @@ WASSGRIDSURFACE_VERSION = "0.2"
 
 
 
-def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None, Ih=None ):
+def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None, Ih=None, fps=0, timestring="" ):
     meshname = path.join(wdir,"mesh_cam.xyzC")
     print("Loading ", meshname )
 
@@ -121,7 +121,9 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
         "KY_ab":KY_ab,
         "spec_scale":spec_scale,
         "x_spacing":x_spacing,
-        "y_spacing":y_spacing
+        "y_spacing":y_spacing,
+        "fps":fps,
+        "timestring":timestring
     } )
 
 
@@ -133,13 +135,18 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
     YY = gridsetup["YY"]
 
     outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ) )
-    baseline = np.asscalar( gridsetup["CAM_BASELINE"] )
+    baseline = gridsetup["CAM_BASELINE"].item(0)
+
+    fps = gridsetup["fps"].item(0) 
 
     outdata.scale[:] = baseline
     outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%WASSGRIDSURFACE_VERSION )
     outdata.add_meta_attribute("generator", "WASS" )
     outdata.add_meta_attribute("baseline", baseline )
+    outdata.add_meta_attribute("fps", fps)
+    outdata.add_meta_attribute("timestring", gridsetup["timestring"] )
     outdata.set_grids( XX*1000.0, YY*1000.0 )
+    outdata.set_kxky( gridsetup["KX_ab"], gridsetup["KY_ab"] )
 
     outdata.set_instrinsics( np.zeros( (3,3), dtype=np.float32),
                              np.zeros( (3,3), dtype=np.float32),
@@ -225,7 +232,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
         ret, imgjpeg = cv.imencode(".jpg", I0 )
-        outdata.push_Z( Zi*1000, 0, FRAME_IDX, imgjpeg )
+        outdata.push_Z( Zi*1000, (N_frames-1)/fps if fps>0 else 0, FRAME_IDX, imgjpeg )
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
         #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
@@ -247,7 +254,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
     print("    Zmin: ",Zmin)
     print("    Zmax: ",Zmax)
     print("   Zmean: ",Zmean)
-    print("# frames: ", N_frames)
+    print("# frames: ",N_frames)
 
     outdata.close()
 
@@ -262,14 +269,30 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("workdir", help="WASS output directory containing the reconstructed frames")
     parser.add_argument("outdir", help="Output directory")
-    parser.add_argument("--action", type=str, help="What to do [setup | grid]" )
+    parser.add_argument("--action", type=str, help="What to do [setup | grid | generategridconfig ]" )
     parser.add_argument("--gridconfig", type=str, help="Grid configuration file for setup action")
     parser.add_argument("--gridsetup", type=str, help="Grid setup file for grid action")
     parser.add_argument("-b", "--baseline", default=1.0, type=float, help="Stereo camera distance" )
+    parser.add_argument("-f", "--fps", default=0, type=float, help="Sequence frames per second" )
+    parser.add_argument("-t", "--timestring", default="", type=str, help="Sequence datetime string (ie. the RAW filename)" )
     parser.add_argument("-Iw", "--image_width", type=float, help="Camera frame width" )
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
     parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%" )
     args = parser.parse_args()
+
+
+    if args.action == "generategridconfig":
+        gridconfigfile = path.join(args.outdir,"gridconfig.txt")  
+        print("Generating ",gridconfigfile)
+        with open(gridconfigfile, "w" ) as f:
+            f.write("[Area]\n")
+            f.write("area_center_x=0.0\n")
+            f.write("area_center_y=-35.0\n")
+            f.write("area_size=50\n")
+            f.write("N=256\n")
+
+        print("All done, exiting.")
+        return
 
 
     print("Looking for WASS reconstructed stereo frames in ",args.workdir )
@@ -314,7 +337,9 @@ def main():
                area_size=settings.getfloat("Area","area_size"),
                N = settings.getint("Area","N"),
                Iw=args.image_width,
-               Ih=args.image_height )
+               Ih=args.image_height,
+               fps=args.fps,
+               timestring=args.timestring )
         
     elif args.action == "grid":
 
