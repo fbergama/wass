@@ -67,10 +67,12 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     zmin = np.quantile( mesh_aligned[2,:],0.02 )*1.5
 
     # Let zmin/zmax be symmetric around 0
-    if zmax>zmin:
+    if np.abs(zmax)>np.abs(zmin):
         zmin=-zmax
     else:
         zmax=-zmin
+
+    print("zmin .. zmax = %3.2f ... %3.2f"%(zmin,zmax) )
 
     # Meshgrid
     XX,YY = np.meshgrid( np.linspace(xmin,xmax,N), np.linspace(ymin,ymax,N) )
