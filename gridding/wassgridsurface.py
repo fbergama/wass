@@ -29,6 +29,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     R = np.loadtxt(path.join(wdir,'Cam0_poseR.txt'))
     T = np.loadtxt(path.join(wdir,'Cam0_poseT.txt'))
     P0Cam =  np.vstack( (np.loadtxt( path.join(wdir,"P0cam.txt"))  ,[0, 0, 0, 1] ) )
+    P1Cam =  np.vstack( (np.loadtxt( path.join(wdir,"P1cam.txt"))  ,[0, 0, 0, 1] ) )
 
     
     if (Iw is None or Ih is None) and path.exists( path.join(wdir,"undistorted","00000000.png") ):
@@ -109,12 +110,16 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
         "ymax":ymax,
         "zmin":zmin,
         "zmax":zmax,
+        "P0cam":P0Cam[0:3,:],
+        "P1cam":P1Cam[0:3,:],
+        "N":N,
         "R":R,
         "T":T,
         "Rpl":Rpl,
         "Tpl":Tpl,
         "P0plane":P0plane,
         "CAM_BASELINE":baseline,
+        "scale":baseline,
         "XX":XX,
         "YY":YY,
         "KX_ab":KX_ab,
