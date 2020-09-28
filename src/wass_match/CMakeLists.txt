@@ -15,9 +15,7 @@ include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                       ${Boost_INCLUDE_DIRS}
                       ${OpenCV_INCLUDE_DIRS}
                     )
-if(MSVC)
-link_directories( ${Boost_LIBRARY_DIR_RELEASE} )
-endif()
+
 
 add_executable( ${PROJECT_NAME} wass_match.cpp
                                 FeatureSet.cpp
@@ -31,7 +29,7 @@ add_executable( ${PROJECT_NAME} wass_match.cpp
               )
 
 if(MSVC)
-target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} )
+target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} Boost::filesystem )
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
