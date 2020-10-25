@@ -3,9 +3,23 @@ LABEL maintainer "filippo.bergamasco@unive.it"
 
 RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
 
-RUN apt-get -y -qq update && apt-get -y -qq install zip gzip tar curl build-essential cmake git liblapack-dev libblas-dev libboost-all-dev ffmpeg libavcodec-dev libavformat-dev libswscale-dev libavresample-dev
-
-
+RUN apt-get -y -qq update \
+ && apt-get -y -qq install \
+    zip \
+    gzip \
+    tar \
+    curl \
+    build-essential \
+    cmake \
+    git \
+    liblapack-dev \
+    libblas-dev \
+    libboost-all-dev \
+    ffmpeg \
+    libavcodec-dev \
+    libavformat-dev \
+    libswscale-dev \
+    libavresample-dev
 
 # grab gosu for easy step-down from root ---------------------------------
 #
@@ -53,7 +67,6 @@ RUN set -eux; \
 RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
 RUN apt-get -yqq update && apt-get install -y nodejs npm
 
-
 # Build OpenCV version 3.4
 #
 WORKDIR /LIBS
@@ -62,12 +75,35 @@ USER wass
 RUN git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv.git --depth 1
 RUN git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv_contrib.git --depth 1
 WORKDIR /LIBS/opencv
-RUN mkdir build && mkdir dist && cd build && \
-    cmake ../ -DCMAKE_INSTALL_PREFIX="../dist/" -DCMAKE_BUILD_TYPE="Release" -DOPENCV_EXTRA_MODULES_PATH=/LIBS/opencv_contrib/modules -DBUILD_opencv_xfeatures2d=OFF   -DBUILD_opencv_xobjdetect=OFF -DBUILD_opencv_ximgproc=ON   -DBUILD_opencv_xphoto=OFF -DBUILD_opencv_superres=OFF  -DBUILD_opencv_surface_matching=OFF  -DBUILD_opencv_structured_light=OFF  -DBUILD_opencv_stitching=OFF  -DBUILD_opencv_saliency=OFF  -DBUILD_opencv_phase_unwrapping=OFF  -DBUILD_opencv_bioinspired=OFF  -DBUILD_opencv_aruco=OFF  -DBUILD_opencv_dnn=OFF  -DBUILD_opencv_datasets=OFF  -DBUILD_opencv_python_bindings_generator=OFF  -DBUILD_opencv_fuzzy=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_TESTS=OFF && \
-    make -j 8 && \
-    make install
-
-
+RUN mkdir build \
+ && mkdir dist \
+ && cd build \
+ && cmake ../ \
+        -DCMAKE_INSTALL_PREFIX="../dist/" \
+        -DCMAKE_BUILD_TYPE="Release" \
+        -DOPENCV_EXTRA_MODULES_PATH=/LIBS/opencv_contrib/modules \
+        -DBUILD_opencv_xfeatures2d=OFF \
+        -DBUILD_opencv_xobjdetect=OFF \
+        -DBUILD_opencv_ximgproc=ON \
+        -DBUILD_opencv_xphoto=OFF \
+        -DBUILD_opencv_superres=OFF \
+        -DBUILD_opencv_surface_matching=OFF \
+        -DBUILD_opencv_structured_light=OFF \
+        -DBUILD_opencv_stitching=OFF \
+        -DBUILD_opencv_saliency=OFF \
+        -DBUILD_opencv_phase_unwrapping=OFF \
+        -DBUILD_opencv_bioinspired=OFF \
+        -DBUILD_opencv_aruco=OFF \
+        -DBUILD_opencv_dnn=OFF \
+        -DBUILD_opencv_datasets=OFF \
+        -DBUILD_opencv_python_bindings_generator=OFF \
+        -DBUILD_opencv_fuzzy=OFF \
+        -DBUILD_EXAMPLES=OFF \
+        -DBUILD_opencv_apps=OFF \
+        -DBUILD_PERF_TESTS=OFF \
+        -DBUILD_TESTS=OFF \
+ && make -j 8 \
+ && make install
 
 # Add the WASS source tree
 WORKDIR /wass
@@ -82,8 +118,12 @@ RUN git submodule init && git submodule update
 RUN mkdir /wass/build
 WORKDIR /wass/build
 RUN rm -Rf *
-RUN cmake ../src/ -DCMAKE_BUILD_TYPE="Release" -DOpenCV_DIR=/LIBS/opencv/build -DDISABLE_BOOST_LOG=ON && make && make install
-
+RUN cmake ../src/ \
+    -DCMAKE_BUILD_TYPE="Release" \
+    -DOpenCV_DIR=/LIBS/opencv/build \
+    -DDISABLE_BOOST_LOG=ON \
+ && make \
+ && make install
 
 # Run npm to install all WASSjs dependencies
 USER root
@@ -91,7 +131,6 @@ RUN mkdir /home/wass && chown wass:wass /home/wass
 USER wass
 WORKDIR /wass/WASSjs
 RUN npm install
-
 
 # Final setup
 ADD ./Docker/worksession.json /wass/WASSjs/worksession.json
@@ -102,12 +141,10 @@ RUN chown wass:wass /wass/WASSjs/settings.json && chmod a+rw /wass/WASSjs/settin
 USER wass
 RUN echo 'export PATH=/wass/dist/bin:$PATH' >> /home/wass/.bashrc
 
-
 USER root
 ADD ./WASSjs/docker_entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker_entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/docker_entrypoint.sh"]
-
 
 WORKDIR /DATA_IN
 VOLUME ["/DATA_IN"]
@@ -120,12 +157,6 @@ USER wass
 WORKDIR /wass/WASSjs
 EXPOSE 8080
 CMD ["/wass/WASSjs/run_as_daemon.sh"]
-
-
-
-
-
-
 
 # Create the final optimized build
 # -----------------------------------------------
@@ -144,7 +175,13 @@ LABEL org.label-schema.vcs-ref=$VCS_REF
 
 RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
 
-RUN apt-get -y -qq update && apt-get -y -qq install zip libboost-system1.65.1 libboost-log1.65.1 libboost-program-options1.65.1 liblapack3
+RUN apt-get -y -qq update \
+ && apt-get -y -qq install \
+    zip \
+    libboost-system1.65.1 \
+    libboost-log1.65.1 \
+    libboost-program-options1.65.1 \
+    liblapack3
 
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /wass/dist/bin /wass/dist/bin
@@ -162,11 +199,9 @@ COPY --from=builder /wass/WASSjs /wass/WASSjs
 RUN rm -R /wass/WASSjs/ext
 RUN ls -alh /wass/WASSjs/
 
-
 # Install node
 RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
 RUN apt-get -yqq update && apt-get install -y nodejs
-
 
 WORKDIR /DATA_IN
 VOLUME ["/DATA_IN"]
