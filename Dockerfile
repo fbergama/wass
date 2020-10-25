@@ -1,7 +1,8 @@
 FROM ubuntu:18.04 AS builder
 LABEL maintainer "filippo.bergamasco@unive.it"
 
-RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
+RUN groupadd -r -g 999 wass \
+ && useradd -r -g wass -u 999 wass
 
 RUN apt-get -y -qq update \
  && apt-get -y -qq install \
@@ -64,16 +65,17 @@ RUN set -eux; \
 
 
 # Install node
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
-RUN apt-get -yqq update && apt-get install -y nodejs npm
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - \
+ && apt-get -yqq update \
+ && apt-get install -y nodejs npm
 
 # Build OpenCV version 3.4
 #
 WORKDIR /LIBS
 RUN chown wass:wass /LIBS
 USER wass
-RUN git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv.git --depth 1
-RUN git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv_contrib.git --depth 1
+RUN git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv.git --depth 1 \
+ && git clone -b 3.4.0 --single-branch https://github.com/opencv/opencv_contrib.git --depth 1
 WORKDIR /LIBS/opencv
 RUN mkdir build \
  && mkdir dist \
@@ -114,11 +116,12 @@ USER wass
 
 
 # Build the backend
-RUN git submodule init && git submodule update
-RUN mkdir /wass/build
-WORKDIR /wass/build
-RUN rm -Rf *
-RUN cmake ../src/ \
+RUN git submodule init \
+ && git submodule update \
+ && mkdir /wass/build \
+ && cd /wass/build \
+ && rm -Rf * \
+ && cmake ../src/ \
     -DCMAKE_BUILD_TYPE="Release" \
     -DOpenCV_DIR=/LIBS/opencv/build \
     -DDISABLE_BOOST_LOG=ON \
@@ -173,7 +176,8 @@ LABEL org.label-schema.url="http://dais.unive.it/wass"
 LABEL org.label-schema.build-date=$BUILD_DATE
 LABEL org.label-schema.vcs-ref=$VCS_REF
 
-RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
+RUN groupadd -r -g 999 wass \
+ && useradd -r -g wass -u 999 wass
 
 RUN apt-get -y -qq update \
  && apt-get -y -qq install \
@@ -196,12 +200,13 @@ COPY --from=builder /LIBS/opencv/dist/lib/libopencv_flann.so.3.4 /LIBS/opencv/di
 RUN ln -s /LIBS/opencv/dist/lib /wass/dist/lib
 
 COPY --from=builder /wass/WASSjs /wass/WASSjs
-RUN rm -R /wass/WASSjs/ext
-RUN ls -alh /wass/WASSjs/
+RUN rm -R /wass/WASSjs/ext \
+ && ls -alh /wass/WASSjs/
 
 # Install node
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
-RUN apt-get -yqq update && apt-get install -y nodejs
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash - \
+ && apt-get -yqq update \
+ && apt-get install -y nodejs
 
 WORKDIR /DATA_IN
 VOLUME ["/DATA_IN"]
