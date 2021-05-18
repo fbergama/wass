@@ -3,7 +3,12 @@ LABEL maintainer "filippo.bergamasco@unive.it"
 
 RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
 
-RUN apt-get -y -qq update && apt-get -y -qq install zip gzip tar curl build-essential cmake git liblapack-dev libblas-dev libboost-all-dev ffmpeg libavcodec-dev libavformat-dev libswscale-dev libavresample-dev
+RUN apt-get -y -qq update && apt-get -y -qq install zip gzip tar curl build-essential cmake git liblapack-dev libblas-dev libboost-all-dev ffmpeg libavcodec-dev libavformat-dev libswscale-dev libavresample-dev apt-transport-https gnupg lsb-release
+
+
+# Install node
+RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
+RUN apt-get -yqq update && apt-get install -y nodejs
 
 
 
@@ -47,11 +52,6 @@ RUN set -eux; \
 
 # End of gosu stuff ------------------------------------
 
-
-
-# Install node
-RUN curl -sL https://deb.nodesource.com/setup_8.x | bash -
-RUN apt-get -yqq update && apt-get install -y nodejs npm
 
 
 # Build OpenCV version 3.4
@@ -144,7 +144,7 @@ LABEL org.label-schema.vcs-ref=$VCS_REF
 
 RUN groupadd -r -g 999 wass && useradd -r -g wass -u 999 wass
 
-RUN apt-get -y -qq update && apt-get -y -qq install zip libboost-system1.65.1 libboost-log1.65.1 libboost-program-options1.65.1 liblapack3
+RUN apt-get -y -qq update && apt-get -y -qq install zip libboost-system1.65.1 libboost-log1.65.1 libboost-program-options1.65.1 liblapack3 apt-transport-https gnupg lsb-release
 
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /wass/dist/bin /wass/dist/bin
