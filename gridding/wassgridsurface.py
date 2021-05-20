@@ -31,7 +31,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     P0Cam =  np.vstack( (np.loadtxt( path.join(wdir,"P0cam.txt"))  ,[0, 0, 0, 1] ) )
     P1Cam =  np.vstack( (np.loadtxt( path.join(wdir,"P1cam.txt"))  ,[0, 0, 0, 1] ) )
 
-    
+
     if (Iw is None or Ih is None) and path.exists( path.join(wdir,"undistorted","00000000.png") ):
         I = cv.imread(  path.join(wdir,"undistorted","00000000.png"), cv.IMREAD_ANYCOLOR )
         Iw,Ih = I.shape[1],I.shape[0]
@@ -44,7 +44,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
 
     Rpl, Tpl = compute_sea_plane_RT( meanplane )
     mesh = load_camera_mesh(meshname)
-    mesh_aligned = align_on_sea_plane( mesh, meanplane) * baseline 
+    mesh_aligned = align_on_sea_plane( mesh, meanplane) * baseline
 
     Ri = Rpl.T
     Ti = -Rpl.T@Tpl
@@ -63,7 +63,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     xmax = area_center[0]+area_size_m
     ymin = area_center[1]-area_size_m
     ymax = area_center[1]+area_size_m
-    zmax = np.quantile( mesh_aligned[2,:],0.98 )*1.5 
+    zmax = np.quantile( mesh_aligned[2,:],0.98 )*1.5
     zmin = np.quantile( mesh_aligned[2,:],0.02 )*1.5
 
     # Let zmin/zmax be symmetric around 0
@@ -144,7 +144,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
     outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ) )
     baseline = gridsetup["CAM_BASELINE"].item(0)
 
-    fps = gridsetup["fps"].item(0) 
+    fps = gridsetup["fps"].item(0)
 
     outdata.scale[:] = baseline
     outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%WASSGRIDSURFACE_VERSION )
@@ -173,7 +173,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
 
         meshname = path.join( wdir, "mesh_cam.xyzC")
         mesh = load_camera_mesh(meshname)
-        mesh_aligned = align_on_sea_plane_RT( mesh, gridsetup["Rpl"], gridsetup["Tpl"]) * gridsetup["CAM_BASELINE"] 
+        mesh_aligned = align_on_sea_plane_RT( mesh, gridsetup["Rpl"], gridsetup["Tpl"]) * gridsetup["CAM_BASELINE"]
         mesh_aligned = mesh_aligned[:, np.random.permutation(mesh_aligned.shape[1]) ]
 
         # # 3D point grid quantization
@@ -190,7 +190,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         # pts_z = mesh_aligned[2,good_pts]
         # ZZ[ pts_y, pts_x ] = pts_z
 
-        #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
+        #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
         #cv.imwrite( path.join(outdir,"area_interp2.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
         #sys.exit(0)
 
@@ -216,7 +216,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         # plt.close()
 
         area_mask =  np.logical_and( np.logical_and( mesh_aligned[0,:]>=gridsetup["xmin"] , mesh_aligned[0,:]<=gridsetup["xmax"] ),
-                                     np.logical_and( mesh_aligned[1,:]>=gridsetup["ymin"] , mesh_aligned[1,:]<=gridsetup["ymax"] ) ) 
+                                     np.logical_and( mesh_aligned[1,:]>=gridsetup["ymin"] , mesh_aligned[1,:]<=gridsetup["ymax"] ) )
 
 
         pt_indices =  np.nonzero(area_mask)[1]
@@ -241,7 +241,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         ret, imgjpeg = cv.imencode(".jpg", I0 )
         outdata.push_Z( Zi*1000, (N_frames-1)/fps if fps>0 else 0, FRAME_IDX, imgjpeg )
 
-        #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8) 
+        #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
         #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
 
         # fig = plt.figure( figsize=(20,20))
@@ -284,12 +284,12 @@ def main():
     parser.add_argument("-t", "--timestring", default="", type=str, help="Sequence datetime string (ie. the RAW filename)" )
     parser.add_argument("-Iw", "--image_width", type=float, help="Camera frame width" )
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
-    parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%" )
+    parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%%" )
     args = parser.parse_args()
 
 
     if args.action == "generategridconfig":
-        gridconfigfile = path.join(args.outdir,"gridconfig.txt")  
+        gridconfigfile = path.join(args.outdir,"gridconfig.txt")
         print("Generating ",gridconfigfile)
         with open(gridconfigfile, "w" ) as f:
             f.write("[Area]\n")
@@ -335,11 +335,11 @@ def main():
 
         settings = configparser.ConfigParser()
         settings.read( args.gridconfig )
-        
-        setup( wass_frames[0], 
-               meanplane, 
+
+        setup( wass_frames[0],
+               meanplane,
                baseline=args.baseline,
-               outdir=args.outdir, 
+               outdir=args.outdir,
                area_center=np.array([ settings.getfloat("Area","area_center_x"), settings.getfloat("Area","area_center_y")]),
                area_size=settings.getfloat("Area","area_size"),
                N = settings.getint("Area","N"),
@@ -347,7 +347,7 @@ def main():
                Ih=args.image_height,
                fps=args.fps,
                timestring=args.timestring )
-        
+
     elif args.action == "grid":
 
         if args.gridsetup is None:
@@ -359,7 +359,7 @@ def main():
               subsample_percent=args.ss )
 
         print("Gridding completed.")
-        
+
     else:
         print("Invalid actions specified.")
         sys.exit(-2)
