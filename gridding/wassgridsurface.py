@@ -18,11 +18,11 @@ from colorama import Fore, Back, Style
 from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
-WASSGRIDSURFACE_VERSION = "0.2"
+WASSGRIDSURFACE_VERSION = "0.3"
 
 
 
-def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None, Ih=None, fps=0, timestring="" ):
+def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_size_y, Nx, Ny, Iw=None, Ih=None, fps=0, timestring="" ):
     meshname = path.join(wdir,"mesh_cam.xyzC")
     print("Loading ", meshname )
 
@@ -58,11 +58,12 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     SCALEi = 1.0/baseline
     P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
 
-    area_size_m = np.floor( area_size / 2)
-    xmin = area_center[0]-area_size_m
-    xmax = area_center[0]+area_size_m
-    ymin = area_center[1]-area_size_m
-    ymax = area_center[1]+area_size_m
+    area_size_m_x = np.floor( area_size_x / 2)
+    area_size_m_y = np.floor( area_size_y / 2)
+    xmin = area_center[0]-area_size_m_x
+    xmax = area_center[0]+area_size_m_x
+    ymin = area_center[1]-area_size_m_y
+    ymax = area_center[1]+area_size_m_y
     zmax = np.quantile( mesh_aligned[2,:],0.98 )*1.5
     zmin = np.quantile( mesh_aligned[2,:],0.02 )*1.5
 
@@ -75,17 +76,20 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     print("zmin .. zmax = %3.2f ... %3.2f"%(zmin,zmax) )
 
     # Meshgrid
-    XX,YY = np.meshgrid( np.linspace(xmin,xmax,N), np.linspace(ymin,ymax,N) )
+    XX,YY = np.meshgrid( np.linspace(xmin,xmax,Nx), np.linspace(ymin,ymax,Ny) )
     x_spacing = XX[0,1]-XX[0,0]
     y_spacing = YY[1,0]-YY[0,0]
-    assert( abs(x_spacing - y_spacing) < 1E-5 )
+    print(x_spacing)
+    print(y_spacing)
+    assert( abs(x_spacing - y_spacing) < 1E-2 )
 
-    Nm = int( N/2 )
+    Nmx = Nx//2 
+    Nmy = Ny//2
 
-    kx_ab = np.array( [float(i)/N*(2.0*np.pi/x_spacing)  for i in range(-Nm,Nm)] )
-    ky_ab = np.array( [float(i)/N*(2*np.pi/y_spacing)  for i in range(-Nm,Nm)] )
+    kx_ab = np.array( [float(i)/Nx*(2.0*np.pi/x_spacing)  for i in range(-Nmx,Nmx)] )
+    ky_ab = np.array( [float(i)/Ny*(2*np.pi/y_spacing)  for i in range(-Nmy,Nmy)] )
     KX_ab, KY_ab = np.meshgrid( kx_ab, ky_ab)
-    spec_scale = 1.0/(N*N)
+    spec_scale = 1.0/(Nx*Ny)
 
     print("Generating grid area plot...")
 
@@ -93,7 +97,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
     plt.scatter( mesh_aligned[0,::50], mesh_aligned[1,::50], c=mesh_aligned[2,::50], vmin=zmin, vmax=zmax )
     plt.gca().invert_yaxis()
     plt.colorbar()
-    plt.plot( np.array([xmin, xmax, xmax, xmin, xmin]), np.array([ymin,ymin,ymax,ymax,ymin]), '-k', linewidth=2 );
+    plt.plot( np.array([xmin, xmax, xmax, xmin, xmin]), np.array([ymin,ymin,ymax,ymax,ymin]), '-k', linewidth=2 )
     plt.scatter( XX.flatten(), YY.flatten(), c="k", s=0.1, marker=".")
     plt.axis("equal")
     plt.title("WASS point cloud %s"%wdir )
@@ -114,7 +118,9 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size, N, Iw=None
         "zmax":zmax,
         "P0cam":P0Cam[0:3,:],
         "P1cam":P1Cam[0:3,:],
-        "N":N,
+        "Nx":Nx,
+        "Ny":Ny,
+        "N":np.amax([Nx,Ny]),
         "R":R,
         "T":T,
         "Rpl":Rpl,
@@ -177,18 +183,25 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         mesh_aligned = mesh_aligned[:, np.random.permutation(mesh_aligned.shape[1]) ]
 
         # # 3D point grid quantization
-        # scalefacx = (gridsetup["xmax"]-gridsetup["xmin"])
-        # scalefacy = (gridsetup["ymax"]-gridsetup["ymin"])
-        # pts_x = np.floor( (mesh_aligned[0,:]-gridsetup["xmin"])/scalefacx * (XX.shape[1]-1) + 0.5 ).astype(np.uint32).flatten()
-        # pts_y = np.floor( (mesh_aligned[1,:]-gridsetup["ymin"])/scalefacy * (XX.shape[0]-1) + 0.5 ).astype(np.uint32).flatten()
-        # good_pts = np.logical_and( np.logical_and( pts_x >= 0 , pts_x < XX.shape[1] ),
-        #                            np.logical_and( pts_y >= 0 , pts_y < XX.shape[0] ) )
+        scalefacx = (gridsetup["xmax"]-gridsetup["xmin"])
+        scalefacy = (gridsetup["ymax"]-gridsetup["ymin"])
+        pts_x = np.floor( (mesh_aligned[0,:]-gridsetup["xmin"])/scalefacx * (XX.shape[1]-1) + 0.5 ).astype(np.uint32).flatten()
+        pts_y = np.floor( (mesh_aligned[1,:]-gridsetup["ymin"])/scalefacy * (XX.shape[0]-1) + 0.5 ).astype(np.uint32).flatten()
+        good_pts = np.logical_and( np.logical_and( pts_x >= 0 , pts_x < XX.shape[1] ),
+                                   np.logical_and( pts_y >= 0 , pts_y < XX.shape[0] ) )
 
-        # ZZ = np.ones( XX.shape, dtype=np.float32 )*np.nan
-        # pts_x = pts_x[good_pts]
-        # pts_y = pts_y[good_pts]
-        # pts_z = mesh_aligned[2,good_pts]
-        # ZZ[ pts_y, pts_x ] = pts_z
+        ZZ = np.ones( XX.shape, dtype=np.float32 )*np.nan
+        pts_x = pts_x[good_pts]
+        pts_y = pts_y[good_pts]
+        pts_z = mesh_aligned[2,good_pts]
+        ZZ[ pts_y, pts_x ] = pts_z
+
+        #np.savez( path.join(outdir,"pts_%06d"%FRAME_IDX), pts_x=pts_x, pts_y=pts_y, pts_z=pts_z, ZZ=ZZ )
+
+        gridlimits = np.array( [gridsetup["xmin"],gridsetup["xmax"],gridsetup["ymin"],gridsetup["ymax"]], dtype=np.float32 )
+        #np.savez( path.join(outdir,"pts_raw_%06d"%FRAME_IDX), mesh_aligned=mesh_aligned, gridlimits=gridlimits )
+
+
 
         #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
         #cv.imwrite( path.join(outdir,"area_interp2.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
@@ -267,8 +280,6 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
 
 
 
-
-
 def main():
     print("WASS surface gridder v.", WASSGRIDSURFACE_VERSION )
     print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n  Copyright (C) Filippo Bergamasco 2020 \n")
@@ -336,13 +347,35 @@ def main():
         settings = configparser.ConfigParser()
         settings.read( args.gridconfig )
 
+        area_size_x=0
+        area_size_y=0
+        Nx=0
+        Ny=0
+
+        try:
+            area_size_x = settings.getfloat("Area","area_size_x")
+            area_size_y = settings.getfloat("Area","area_size_y")
+
+        except configparser.NoOptionError:
+            area_size_x = area_size_y = settings.getfloat("Area","area_size")
+
+
+        try:
+            Nx = settings.getint("Area","Nx")
+            Ny = settings.getint("Area","Ny")
+
+        except configparser.NoOptionError:
+            Nx = Ny = settings.getint("Area","N")
+
         setup( wass_frames[0],
                meanplane,
                baseline=args.baseline,
                outdir=args.outdir,
                area_center=np.array([ settings.getfloat("Area","area_center_x"), settings.getfloat("Area","area_center_y")]),
-               area_size=settings.getfloat("Area","area_size"),
-               N = settings.getint("Area","N"),
+               area_size_x=area_size_x,
+               area_size_y=area_size_y,
+               Nx = Nx,
+               Ny = Ny,
                Iw=args.image_width,
                Ih=args.image_height,
                fps=args.fps,
