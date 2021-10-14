@@ -2,6 +2,7 @@ import argparse
 import configparser
 import scipy.io as sio
 import scipy.interpolate
+import scipy.signal
 import os
 import sys
 import glob
@@ -18,7 +19,45 @@ from colorama import Fore, Back, Style
 from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
-WASSGRIDSURFACE_VERSION = "0.3"
+WASSGRIDSURFACE_VERSION = "0.4"
+
+
+class IDWInterpolator:
+
+    def __init__( self, KSIZE=5, exp=2.4 ):
+        assert KSIZE%2 == 1
+        Kd = np.array( [ (k-KSIZE//2) for k in range(KSIZE) ], dtype=np.float64 )
+
+        Kx = np.tile( Kd, (KSIZE,1) )
+        Ky = Kx.T
+
+        K = 1.0 / np.power( np.sqrt( Kx**2 + Ky**2 ), exp)
+        K[KSIZE//2, KSIZE//2]=0
+        self.K = K
+
+
+    def __call__( self, I, reps=3 ):
+        
+        orig_pts_mask = 1-np.isnan(I).astype(np.uint8)
+        final_mask = cv.morphologyEx( orig_pts_mask, cv.MORPH_CLOSE, np.ones( self.K.shape, dtype=np.uint8), iterations=reps )
+
+        mask = orig_pts_mask.astype(np.float32)
+        I[ np.isnan(I) ] = 0
+        I = np.copy(I)
+        Iinit = np.copy(I)
+        
+        for ii in range(reps):
+            #print("IDW iteration ",ii )
+            I2 = scipy.signal.convolve2d( I, self.K, mode="same" )
+            mask2 = scipy.signal.convolve2d( mask, self.K, mode="same" )
+            I2 = I2 / (mask2+1E-9)
+            mask = np.sign(mask2)
+            I = orig_pts_mask*Iinit + (1-orig_pts_mask)*I2
+
+        I[ final_mask==0 ] = np.nan
+
+        return I
+
 
 
 
@@ -141,7 +180,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
+def grid( wass_frames, matfile, outdir, subsample_percent = 100, algorithm="IDW" ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -172,6 +211,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
     Zmax = -np.Inf
     N_frames = 1
 
+    print("Interpolation algorithm: ", algorithm )
+
     for wdir in tqdm(wass_frames):
         tqdm.write(wdir)
         dirname = path.split( wdir )[-1]
@@ -190,60 +231,84 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100 ):
         good_pts = np.logical_and( np.logical_and( pts_x >= 0 , pts_x < XX.shape[1] ),
                                    np.logical_and( pts_y >= 0 , pts_y < XX.shape[0] ) )
 
-        ZZ = np.ones( XX.shape, dtype=np.float32 )*np.nan
-        pts_x = pts_x[good_pts]
-        pts_y = pts_y[good_pts]
-        pts_z = mesh_aligned[2,good_pts]
-        ZZ[ pts_y, pts_x ] = pts_z
+        if algorithm=="IDW":
+            interpolator = IDWInterpolator( KSIZE=5 )
+            NREPS = 10 
+            ZZ = np.ones( [XX.shape[0], XX.shape[1], NREPS], dtype=np.float32 )*np.nan
 
-        #np.savez( path.join(outdir,"pts_%06d"%FRAME_IDX), pts_x=pts_x, pts_y=pts_y, pts_z=pts_z, ZZ=ZZ )
+            pts_x = pts_x[good_pts]
+            pts_y = pts_y[good_pts]
+            pts_z = mesh_aligned[2,good_pts]
 
-        gridlimits = np.array( [gridsetup["xmin"],gridsetup["xmax"],gridsetup["ymin"],gridsetup["ymax"]], dtype=np.float32 )
-        #np.savez( path.join(outdir,"pts_raw_%06d"%FRAME_IDX), mesh_aligned=mesh_aligned, gridlimits=gridlimits )
+            indices = np.arange( pts_x.shape[0] )
+            n_pts = int( pts_x.shape[0]*subsample_percent//100 )
+
+            for ii in range(NREPS):
+                np.random.shuffle( indices )
+                curr_indices = np.copy( indices[:n_pts] )
+                ZZ[ pts_y[indices[curr_indices]], pts_x[indices[curr_indices]], ii ] = pts_z[indices[curr_indices]]
+
+            ZZ = np.nanmean( ZZ, axis=-1 )
+            Zi = interpolator(ZZ)
+
+            # fig = plt.figure( figsize=(20,20))
+            # plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+            # figfile = path.join(outdir,"area_interp_mean.png" )
+            # fig.savefig(figfile,bbox_inches='tight')
+            # plt.close()
+
+        elif algorithm=="LinearND": 
+
+            #np.savez( path.join(outdir,"pts_%06d"%FRAME_IDX), pts_x=pts_x, pts_y=pts_y, pts_z=pts_z, ZZ=ZZ )
+            #gridlimits = np.array( [gridsetup["xmin"],gridsetup["xmax"],gridsetup["ymin"],gridsetup["ymax"]], dtype=np.float32 )
+            #np.savez( path.join(outdir,"pts_raw_%06d"%FRAME_IDX), mesh_aligned=mesh_aligned, gridlimits=gridlimits )
+
+            #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
+            #cv.imwrite( path.join(outdir,"area_interp2.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
+            #sys.exit(0)
+
+            # fig = plt.figure( figsize=(20,20))
+            # plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+            # figfile = path.join(outdir,"area_interp2.png")
+            # fig.savefig(figfile,bbox_inches='tight')
+            # plt.close()
+
+            # #tqdm.write("Filtering mesh outliers...")
+            # #mesh_aligned = filter_mesh_outliers( mesh_aligned, debug=False )
+
+            # # fig = plt.figure( figsize=(20,20))
+            # # plt.scatter( mesh_aligned[0,::50], mesh_aligned[1,::50], c=mesh_aligned[2,::50], vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+            # # plt.gca().invert_yaxis()
+            # # plt.colorbar()
+            # # plt.scatter( XX.flatten(), YY.flatten(), c="k", s=0.1, marker=".")
+            # # plt.axis("equal")
+            # # plt.title("WASS point cloud %s"%wdir )
+            # # plt.grid("minor")
+            # # figfile = path.join(outdir,"area_grid2.png")
+            # # fig.savefig(figfile,bbox_inches='tight')
+            # # plt.close()
+
+            area_mask =  np.logical_and( np.logical_and( mesh_aligned[0,:]>=gridsetup["xmin"] , mesh_aligned[0,:]<=gridsetup["xmax"] ),
+                                        np.logical_and( mesh_aligned[1,:]>=gridsetup["ymin"] , mesh_aligned[1,:]<=gridsetup["ymax"] ) )
 
 
+            pt_indices =  np.nonzero(area_mask)[1]
+            tqdm.write("%d points in the area"%pt_indices.size )
+            np.random.shuffle( pt_indices )
+            pt_indices = pt_indices[ :int(pt_indices.size*subsample_percent/100.0)]
+            tqdm.write("%d points after subsampling (%d%%)"%(pt_indices.size, subsample_percent) )
 
-        #aux = ((ZZ-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
-        #cv.imwrite( path.join(outdir,"area_interp2.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
-        #sys.exit(0)
-
-        # fig = plt.figure( figsize=(20,20))
-        # plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-        # figfile = path.join(outdir,"area_interp2.png")
-        # fig.savefig(figfile,bbox_inches='tight')
-        # plt.close()
-
-        #tqdm.write("Filtering mesh outliers...")
-        #mesh_aligned = filter_mesh_outliers( mesh_aligned, debug=False )
-
-        # fig = plt.figure( figsize=(20,20))
-        # plt.scatter( mesh_aligned[0,::50], mesh_aligned[1,::50], c=mesh_aligned[2,::50], vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-        # plt.gca().invert_yaxis()
-        # plt.colorbar()
-        # plt.scatter( XX.flatten(), YY.flatten(), c="k", s=0.1, marker=".")
-        # plt.axis("equal")
-        # plt.title("WASS point cloud %s"%wdir )
-        # plt.grid("minor")
-        # figfile = path.join(outdir,"area_grid2.png")
-        # fig.savefig(figfile,bbox_inches='tight')
-        # plt.close()
-
-        area_mask =  np.logical_and( np.logical_and( mesh_aligned[0,:]>=gridsetup["xmin"] , mesh_aligned[0,:]<=gridsetup["xmax"] ),
-                                     np.logical_and( mesh_aligned[1,:]>=gridsetup["ymin"] , mesh_aligned[1,:]<=gridsetup["ymax"] ) )
+            tqdm.write("Interpolating... ", end="")
+            interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,pt_indices].T, mesh_aligned[2,pt_indices].T )
+            Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
+            Zi = np.reshape( Zi, XX.shape )
+            tqdm.write("done")
+        else:
+            print("Invalid interpolation algorithm, aborting")
+            return
 
 
-        pt_indices =  np.nonzero(area_mask)[1]
-        tqdm.write("%d points in the area"%pt_indices.size )
-        np.random.shuffle( pt_indices )
-        pt_indices = pt_indices[ :int(pt_indices.size*subsample_percent/100.0)]
-        tqdm.write("%d points after subsampling (%d%%)"%(pt_indices.size, subsample_percent) )
-
-        tqdm.write("Interpolating... ", end="")
-        interpolator = scipy.interpolate.LinearNDInterpolator( mesh_aligned[:2,pt_indices].T, mesh_aligned[2,pt_indices].T )
-        Zi = interpolator( np.vstack( [XX.flatten(), YY.flatten() ]).T )
-        Zi = np.reshape( Zi, XX.shape )
-        tqdm.write("done")
-
+        # Zi here contains the interpolated surface
         Zmean = Zmean + (np.nanmean(Zi)-Zmean)/N_frames
         Zmin = min( Zmin, np.nanmin(Zi) )
         Zmax = max( Zmax, np.nanmax(Zi) )
@@ -296,6 +361,7 @@ def main():
     parser.add_argument("-Iw", "--image_width", type=float, help="Camera frame width" )
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
     parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%%" )
+    parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="IDW", help='Interpolation algorithm to use. Alternatives are: "IDW", "LinearND" ' )
     args = parser.parse_args()
 
 
@@ -389,7 +455,8 @@ def main():
         grid( wass_frames,
               matfile=args.gridsetup,
               outdir=args.outdir,
-              subsample_percent=args.ss )
+              subsample_percent=args.ss,
+              algorithm=args.ia )
 
         print("Gridding completed.")
 
