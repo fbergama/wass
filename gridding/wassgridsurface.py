@@ -19,6 +19,8 @@ from colorama import Fore, Back, Style
 from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
+#from TFVariationalRefinement import TFVariationalRefinement
+
 WASSGRIDSURFACE_VERSION = "0.4"
 
 
@@ -56,7 +58,7 @@ class IDWInterpolator:
 
         I[ final_mask==0 ] = np.nan
 
-        return I
+        return I, final_mask
 
 
 
@@ -180,11 +182,19 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent = 100, algorithm="IDW" ):
+def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm="IDW" ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
     YY = gridsetup["YY"]
+
+    Rpl = gridsetup["Rpl"]
+    Tpl = gridsetup["Tpl"]
+    Rp2c = Rpl.T
+    Tp2c = -Rp2c@Tpl
+
+    P0cam = gridsetup["P0cam"]
+    P1cam = gridsetup["P1cam"]
 
     outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ) )
     baseline = gridsetup["CAM_BASELINE"].item(0)
@@ -211,7 +221,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, algorithm="IDW"
     Zmax = -np.Inf
     N_frames = 1
 
-    print("Interpolation algorithm: ", algorithm )
+    print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
 
     for wdir in tqdm(wass_frames):
         tqdm.write(wdir)
@@ -233,7 +243,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, algorithm="IDW"
 
         if algorithm=="IDW":
             interpolator = IDWInterpolator( KSIZE=5 )
-            NREPS = 10 
+            #NREPS = 10 
+            NREPS=10
             ZZ = np.ones( [XX.shape[0], XX.shape[1], NREPS], dtype=np.float32 )*np.nan
 
             pts_x = pts_x[good_pts]
@@ -248,14 +259,79 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, algorithm="IDW"
                 curr_indices = np.copy( indices[:n_pts] )
                 ZZ[ pts_y[indices[curr_indices]], pts_x[indices[curr_indices]], ii ] = pts_z[indices[curr_indices]]
 
-            ZZ = np.nanmean( ZZ, axis=-1 )
-            Zi = interpolator(ZZ)
+            ZZ = np.nanmedian( ZZ, axis=-1 )
+            Zi, mask = interpolator(ZZ, reps=1)
+
+            if mf>0:
+                Zi = Zi.astype(np.float32)
+                Zi[ mask==0 ] = 0
+                Zi = cv.medianBlur(Zi, ksize=mf)
+                Zi[ mask==0 ] = np.nan
+
+            fig = plt.figure( figsize=(20,20))
+            plt.imshow( Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+            figfile = path.join(outdir,"Zinit.png" )
+            fig.savefig(figfile,bbox_inches='tight')
+            plt.close()
+
+
+            # I0 = cv.imread( path.join(wdir,"undistorted/00000000.png"))
+            # I1 = cv.imread( path.join(wdir,"undistorted/00000001.png"))
+
+            # tfvr = TFVariationalRefinement( I0[...,0], I1[...,0], Rp2c=Rp2c, Tp2c=Tp2c, P0cam=P0cam, P1cam=P1cam, XX=XX, YY=YY, baseline=baseline, mask=mask )
+
+            # # print("-ZZ")
+            # # print( tfvr.compute_loss(-ZZ/baseline) )
+            # # I0_samp, I1_samp, _, _ = tfvr.sample_images( -ZZ/baseline )
+
+            # # cv.imwrite( path.join(outdir, "00_I0.png"), I0_samp.numpy() )
+            # # cv.imwrite( path.join(outdir, "00_I1.png"), I1_samp.numpy() )
+
+
+            # I0_samp, I1_samp, _, _ = tfvr.sample_images( -ZZ/baseline )
+            # cv.imwrite( path.join(outdir, "01_I0.png"), I0_samp.numpy() )
+            # cv.imwrite( path.join(outdir, "01_I1.png"), I1_samp.numpy() )
+
+            # fig = plt.figure( figsize=(20,20))
+            # plt.imshow( np.abs( (I0_samp-I1_samp).numpy()), vmin=0, vmax=80  )
+            # plt.colorbar()
+            # figfile = path.join(outdir,"Zinit_error.png")
+            # fig.savefig(figfile,bbox_inches='tight')
+            # plt.close()
 
             # fig = plt.figure( figsize=(20,20))
             # plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-            # figfile = path.join(outdir,"area_interp_mean.png" )
+            # figfile = path.join(outdir,"Zinit.png" )
             # fig.savefig(figfile,bbox_inches='tight')
             # plt.close()
+
+            # Z_opt = tfvr.optimize( -ZZ/baseline )
+            # I0_samp, I1_samp, _, _ = tfvr.sample_images( Z_opt )
+            # cv.imwrite( path.join(outdir, "02_opt_I0.png"), I0_samp.numpy() )
+            # cv.imwrite( path.join(outdir, "02_opt_I1.png"), I1_samp.numpy() )
+            # Z_opt = -Z_opt*baseline
+            # fig = plt.figure( figsize=(20,20))
+            # plt.imshow( np.abs( (I0_samp-I1_samp).numpy()), vmin=0, vmax=80 )
+            # plt.colorbar()
+            # figfile = path.join(outdir,"Zopt_error.png" )
+            # fig.savefig(figfile,bbox_inches='tight')
+            # plt.close()
+
+
+            # # Z_dx, Z_dy = tfvr.compute_Z_gradient( -ZZ/baseline )
+            # # fig = plt.figure( figsize=(20,20))
+            # # plt.imshow( Z_dy.numpy() )
+            # # plt.colorbar()
+            # # plt.title("Z_dy")
+            # # fig.savefig( path.join(outdir,"Z_dy"), bbox_inches='tight')
+
+
+            # fig = plt.figure( figsize=(20,20))
+            # plt.imshow( Z_opt, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+            # figfile = path.join(outdir,"Zopt.png" )
+            # fig.savefig(figfile,bbox_inches='tight')
+            # plt.close()
+            # return
 
         elif algorithm=="LinearND": 
 
@@ -361,6 +437,7 @@ def main():
     parser.add_argument("-Iw", "--image_width", type=float, help="Camera frame width" )
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
     parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%%" )
+    parser.add_argument("--mf", "--medianfilter", type=int, default=0, help="Median filter window size (0,3,5,7)" )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="IDW", help='Interpolation algorithm to use. Alternatives are: "IDW", "LinearND" ' )
     args = parser.parse_args()
 
@@ -455,6 +532,7 @@ def main():
         grid( wass_frames,
               matfile=args.gridsetup,
               outdir=args.outdir,
+              mf=args.mf,
               subsample_percent=args.ss,
               algorithm=args.ia )
 
