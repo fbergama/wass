@@ -2,7 +2,6 @@ import argparse
 import configparser
 import scipy.io as sio
 import scipy.interpolate
-import scipy.signal
 import os
 import sys
 import glob
@@ -20,46 +19,11 @@ from netcdfoutput import NetCDFOutput
 from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
 #from TFVariationalRefinement import TFVariationalRefinement
-
-WASSGRIDSURFACE_VERSION = "0.4"
-
-
-class IDWInterpolator:
-
-    def __init__( self, KSIZE=5, exp=2.4 ):
-        assert KSIZE%2 == 1
-        Kd = np.array( [ (k-KSIZE//2) for k in range(KSIZE) ], dtype=np.float64 )
-
-        Kx = np.tile( Kd, (KSIZE,1) )
-        Ky = Kx.T
-
-        K = 1.0 / np.power( np.sqrt( Kx**2 + Ky**2 ), exp)
-        K[KSIZE//2, KSIZE//2]=0
-        self.K = K
+from IDWInterpolator import IDWInterpolator
+from DCTInterpolator import DCTInterpolator
 
 
-    def __call__( self, I, reps=3 ):
-        
-        orig_pts_mask = 1-np.isnan(I).astype(np.uint8)
-        final_mask = cv.morphologyEx( orig_pts_mask, cv.MORPH_CLOSE, np.ones( self.K.shape, dtype=np.uint8), iterations=reps )
-
-        mask = orig_pts_mask.astype(np.float32)
-        I[ np.isnan(I) ] = 0
-        I = np.copy(I)
-        Iinit = np.copy(I)
-        
-        for ii in range(reps):
-            #print("IDW iteration ",ii )
-            I2 = scipy.signal.convolve2d( I, self.K, mode="same" )
-            mask2 = scipy.signal.convolve2d( mask, self.K, mode="same" )
-            I2 = I2 / (mask2+1E-9)
-            mask = np.sign(mask2)
-            I = orig_pts_mask*Iinit + (1-orig_pts_mask)*I2
-
-        I[ final_mask==0 ] = np.nan
-
-        return I, final_mask
-
+WASSGRIDSURFACE_VERSION = "0.5"
 
 
 
@@ -124,7 +88,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
     print(y_spacing)
     assert( abs(x_spacing - y_spacing) < 1E-2 )
 
-    Nmx = Nx//2 
+    Nmx = Nx//2
     Nmy = Ny//2
 
     kx_ab = np.array( [float(i)/Nx*(2.0*np.pi/x_spacing)  for i in range(-Nmx,Nmx)] )
@@ -222,6 +186,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
     N_frames = 1
 
     print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
+    interpolator = IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0] )
 
     for wdir in tqdm(wass_frames):
         tqdm.write(wdir)
@@ -233,7 +198,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
         mesh_aligned = align_on_sea_plane_RT( mesh, gridsetup["Rpl"], gridsetup["Tpl"]) * gridsetup["CAM_BASELINE"]
         mesh_aligned = mesh_aligned[:, np.random.permutation(mesh_aligned.shape[1]) ]
 
-        # # 3D point grid quantization
+        # 3D point grid quantization
         scalefacx = (gridsetup["xmax"]-gridsetup["xmin"])
         scalefacy = (gridsetup["ymax"]-gridsetup["ymin"])
         pts_x = np.floor( (mesh_aligned[0,:]-gridsetup["xmin"])/scalefacx * (XX.shape[1]-1) + 0.5 ).astype(np.uint32).flatten()
@@ -241,9 +206,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
         good_pts = np.logical_and( np.logical_and( pts_x >= 0 , pts_x < XX.shape[1] ),
                                    np.logical_and( pts_y >= 0 , pts_y < XX.shape[0] ) )
 
-        if algorithm=="IDW":
-            interpolator = IDWInterpolator( KSIZE=5 )
-            #NREPS = 10 
+        if algorithm=="IDW" or algorithm=="DCT":
+
             NREPS=10
             ZZ = np.ones( [XX.shape[0], XX.shape[1], NREPS], dtype=np.float32 )*np.nan
 
@@ -260,7 +224,15 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
                 ZZ[ pts_y[indices[curr_indices]], pts_x[indices[curr_indices]], ii ] = pts_z[indices[curr_indices]]
 
             ZZ = np.nanmedian( ZZ, axis=-1 )
-            Zi, mask = interpolator(ZZ, reps=1)
+
+            if N_frames == 1:
+                fig = plt.figure( figsize=(20,20))
+                plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+                figfile = path.join(outdir,"points.png" )
+                fig.savefig(figfile,bbox_inches='tight')
+                plt.close()
+
+            Zi, mask = interpolator(ZZ)
 
             if mf>0:
                 Zi = Zi.astype(np.float32)
@@ -268,11 +240,12 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
                 Zi = cv.medianBlur(Zi, ksize=mf)
                 Zi[ mask==0 ] = np.nan
 
-            fig = plt.figure( figsize=(20,20))
-            plt.imshow( Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
-            figfile = path.join(outdir,"Zinit.png" )
-            fig.savefig(figfile,bbox_inches='tight')
-            plt.close()
+            if N_frames == 1:
+                fig = plt.figure( figsize=(20,20))
+                plt.imshow( Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
+                figfile = path.join(outdir,"gridded.png" )
+                fig.savefig(figfile,bbox_inches='tight')
+                plt.close()
 
 
             # I0 = cv.imread( path.join(wdir,"undistorted/00000000.png"))
@@ -333,7 +306,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
             # plt.close()
             # return
 
-        elif algorithm=="LinearND": 
+        elif algorithm=="LinearND":
 
             #np.savez( path.join(outdir,"pts_%06d"%FRAME_IDX), pts_x=pts_x, pts_y=pts_y, pts_z=pts_z, ZZ=ZZ )
             #gridlimits = np.array( [gridsetup["xmin"],gridsetup["xmax"],gridsetup["ymin"],gridsetup["ymax"]], dtype=np.float32 )
@@ -425,7 +398,30 @@ def main():
     print("WASS surface gridder v.", WASSGRIDSURFACE_VERSION )
     print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n  Copyright (C) Filippo Bergamasco 2020 \n")
 
-    parser = argparse.ArgumentParser()
+    howtostring = """
+        How to use:
+        Assuming that "./output" is the WASS output dir containing the frames you want to grid
+
+        1) Create the gridding output directory
+            mkdir gridding
+
+        2) Generate grid config file:
+            python wassgridsurface.py --action generategridconfig . gridding
+
+        3) Edit the grid config file:
+            <your_favourite_editor> gridding/gridconfig.txt
+
+        4) Setup the reconstruction
+            python wassgridsurface.py --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --baseline [CAMERA_BASELINE]
+
+        5) Open the image ./gridding/area_grid.png to check the extension of the reconstructed area.
+           To make changes, go back to step 3.
+
+        6) Run the gridding
+            python wassgridsurface.py --action grid --gridsetup ./gridding/config.mat ./output ./gridding
+    """
+
+    parser = argparse.ArgumentParser( epilog=howtostring, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument("workdir", help="WASS output directory containing the reconstructed frames")
     parser.add_argument("outdir", help="Output directory")
     parser.add_argument("--action", type=str, help="What to do [setup | grid | generategridconfig ]" )
@@ -438,9 +434,9 @@ def main():
     parser.add_argument("-Ih", "--image_height", type=float, help="Camera frame height" )
     parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%%" )
     parser.add_argument("--mf", "--medianfilter", type=int, default=0, help="Median filter window size (0,3,5,7)" )
-    parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="IDW", help='Interpolation algorithm to use. Alternatives are: "IDW", "LinearND" ' )
+    parser.add_argument("-n", "--num_frames", type=int, default=-1, help="Number of frames to process. -1 to process all frames." )
+    parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     args = parser.parse_args()
-
 
     if args.action == "generategridconfig":
         gridconfigfile = path.join(args.outdir,"gridconfig.txt")
@@ -460,6 +456,9 @@ def main():
     wass_frames = glob.glob( path.join( args.workdir, "*_wd" ))
     wass_frames.sort()
     print("%d frames found."%len(wass_frames) )
+    if args.num_frames>-1:
+        wass_frames = wass_frames[:(args.num_frames)]
+        print("%d frames to process."%len(wass_frames))
 
     planefile = path.join( args.workdir, "planes.txt" )
     print("Looking planes definition file ",args.workdir )

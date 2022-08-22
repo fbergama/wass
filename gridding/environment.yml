@@ -1,13 +1,17 @@
 name: wassgridding
 channels:
-  - defaults
+  - conda-forge
+  - pytorch
 dependencies:
-  - python=3.7
+  - python=3.9
+  - pytorch
+  - cpuonly
   - matplotlib
   - colorama
   - scipy
   - numpy
   - tqdm
-  - opencv
+  - opencv=4.6.0
+  - openh264
   - netcdf4
 prefix: C:\Users\USER\miniconda3\envs\wassgridding
