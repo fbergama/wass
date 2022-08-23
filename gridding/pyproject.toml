@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wassgridsurface"
+description = "WASS surface gridding tool"
+readme = "README.rst"
+requires-python = ">=3.9"
+keywords = ["WASS", "3D", "Interpolation"]
+license = {text = "GPL3"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "torch","matplotlib","colorama","scipy","numpy","tqdm",
+    "opencv-python>=2.4.6", "netcdf4"
+]
+dynamic = ["version"]
+
+[project.scripts]
+wassgridsurface = "wassgridsurface:wassgridsurface_main"
+
+[tool.setuptools.dynamic]
+version = {attr = "wassgridsurface.wassgridsurface.VERSION"}
+
+# ... other project metadata fields as specified in:
+#     https://packaging.python.org/en/latest/specifications/declaring-project-metadata/

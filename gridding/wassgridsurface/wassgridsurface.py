@@ -1,3 +1,25 @@
+"""
+wassgridsurface
+Copyright (C) 2022 Filippo Bergamasco
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
+
+VERSION = "0.5.0"
+
+
 import argparse
 import configparser
 import scipy.io as sio
@@ -15,15 +37,13 @@ import colorama
 colorama.init()
 from colorama import Fore, Back, Style
 
-from netcdfoutput import NetCDFOutput
-from wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
+from wassgridsurface.netcdfoutput import NetCDFOutput
+from wassgridsurface.wass_utils import load_camera_mesh, align_on_sea_plane, align_on_sea_plane_RT, compute_sea_plane_RT, filter_mesh_outliers
 
 #from TFVariationalRefinement import TFVariationalRefinement
-from IDWInterpolator import IDWInterpolator
-from DCTInterpolator import DCTInterpolator
+from wassgridsurface.IDWInterpolator import IDWInterpolator
+from wassgridsurface.DCTInterpolator import DCTInterpolator
 
-
-WASSGRIDSURFACE_VERSION = "0.5"
 
 
 
@@ -166,7 +186,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
     fps = gridsetup["fps"].item(0)
 
     outdata.scale[:] = baseline
-    outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%WASSGRIDSURFACE_VERSION )
+    outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%VERSION )
     outdata.add_meta_attribute("generator", "WASS" )
     outdata.add_meta_attribute("baseline", baseline )
     outdata.add_meta_attribute("fps", fps)
@@ -388,15 +408,15 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
     print("    Zmin: ",Zmin)
     print("    Zmax: ",Zmax)
     print("   Zmean: ",Zmean)
-    print("# frames: ",N_frames)
+    print("# frames: ",N_frames-1)
 
     outdata.close()
 
 
 
-def main():
-    print("WASS surface gridder v.", WASSGRIDSURFACE_VERSION )
-    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n  Copyright (C) Filippo Bergamasco 2020 \n")
+def wassgridsurface_main():
+    print(" WASS surface gridder v.", VERSION )
+    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\nCopyright (C) Filippo Bergamasco 2022 \n")
 
     howtostring = """
         How to use:
@@ -406,19 +426,20 @@ def main():
             mkdir gridding
 
         2) Generate grid config file:
-            python wassgridsurface.py --action generategridconfig . gridding
+            wassgridsurface --action generategridconfig . gridding
 
-        3) Edit the grid config file:
-            <your_favourite_editor> gridding/gridconfig.txt
+        3) Edit the grid config file ./gridding/gridconfig.txt with your favourite editor
 
         4) Setup the reconstruction
-            python wassgridsurface.py --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --baseline [CAMERA_BASELINE]
+            wassgridsurface --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --baseline [CAMERA_BASELINE]
 
         5) Open the image ./gridding/area_grid.png to check the extension of the reconstructed area.
            To make changes, go back to step 3.
 
         6) Run the gridding
-            python wassgridsurface.py --action grid --gridsetup ./gridding/config.mat ./output ./gridding
+            wassgridsurface --action grid --gridsetup ./gridding/config.mat ./output ./gridding
+
+        Resulting NetCDF file can be found in ./gridding/gridded.nc
     """
 
     parser = argparse.ArgumentParser( epilog=howtostring, formatter_class=argparse.RawDescriptionHelpFormatter )
@@ -542,6 +563,3 @@ def main():
         sys.exit(-2)
 
 
-
-if __name__ == "__main__":
-    main()

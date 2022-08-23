@@ -1,3 +1,21 @@
+"""
+wassgridsurface
+Copyright (C) 2022 Filippo Bergamasco
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""
+
 import numpy as np
 import struct
 
@@ -6,17 +24,17 @@ def load_camera_mesh( meshfile ):
         npts = struct.unpack( "I", mf.read( 4 ) )[0]
         limits = np.array( struct.unpack( "dddddd", mf.read( 6*8 ) ) )
         Rinv = np.reshape( np.array(struct.unpack("ddddddddd", mf.read(9*8) )), (3,3) )
-        Tinv = np.reshape( np.array(struct.unpack("ddd", mf.read(3*8) )), (3,1) ) 
-                
+        Tinv = np.reshape( np.array(struct.unpack("ddd", mf.read(3*8) )), (3,1) )
+
         data = np.reshape( np.array( bytearray(mf.read( npts*3*2 )), dtype=np.uint8 ).view(dtype=np.uint16), (3,npts), order="F" )
-        
+
         mesh_cam = data.astype( np.float32 )
         mesh_cam = mesh_cam / np.expand_dims( limits[0:3], axis=1) + np.expand_dims( limits[3:6], axis=1 );
         mesh_cam = Rinv@mesh_cam + Tinv;
-    
+
         return mesh_cam
-    
-    
+
+
 def compute_sea_plane_RT( plane ):
     assert len(plane)==4, "Plane must be a 4-element vector"
     a=plane[0]
@@ -26,17 +44,17 @@ def compute_sea_plane_RT( plane ):
     q = (1-c)/(a*a + b*b)
     R=np.array([[1-a*a*q, -a*b*q, -a], [-a*b*q, 1-b*b*q, -b], [a, b, c] ] )
     T=np.expand_dims( np.array([0,0,d]), axis=1)
-    
-    return R, T
-    
 
-        
+    return R, T
+
+
+
 
 
 def align_on_sea_plane_RT( mesh, R, T ):
     # Rotate, translate
     mesh_aligned = R@mesh + T;
-    
+
     # Invert z axis
     mesh_aligned[2,:]*=-1.0;
 
@@ -45,7 +63,7 @@ def align_on_sea_plane_RT( mesh, R, T ):
 
 def align_on_sea_plane( mesh, plane ):
     assert mesh.shape[0]==3, "Mesh must be a 3xN numpy array"
-    
+
     R,T = compute_sea_plane_RT( plane )
     return align_on_sea_plane_RT(mesh, R,T)
 
@@ -109,7 +127,7 @@ def filter_mesh_outliers( mesh_aligned, ransac_inlier_threshold=0.2, debug=True 
     np.random.seed( None )
     votes = np.zeros( mesh_aligned.shape[1] )
     processed = np.zeros( mesh_aligned.shape[1] )
-    
+
     limits_x = [ np.amin( mesh_aligned[0,:] ), np.amax( mesh_aligned[0,:] ) ]
     limits_y = [ np.amin( mesh_aligned[1,:] ), np.amax( mesh_aligned[1,:] ) ]
 
@@ -120,7 +138,7 @@ def filter_mesh_outliers( mesh_aligned, ransac_inlier_threshold=0.2, debug=True 
         randpt = scan_pts[:,ii]
 
         pts_idx = np.array( tree.query_ball_point( (randpt[0],randpt[1]),0.5 ) )
-        
+
         if len(pts_idx)>0:
             processed[ pts_idx ] += 1
             ptsR = mesh_aligned[:,pts_idx]
@@ -137,10 +155,10 @@ def filter_mesh_outliers( mesh_aligned, ransac_inlier_threshold=0.2, debug=True 
         plt.figure( figsize=(10,10) )
         plt.scatter( mesh_aligned[0,:], mesh_aligned[1,:], c=votes)
         plt.colorbar()
-        
+
         plt.figure( figsize=(10,10) )
         plt.scatter( mesh_aligned[0,:], mesh_aligned[1,:], c=processed)
         plt.colorbar()
-        
+
     return mesh_aligned_filtered
 
