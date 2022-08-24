@@ -166,7 +166,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None ):
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -214,7 +214,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
 
     print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
-    interpolator = IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0] )
+    interpolator = IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options )
 
     for wdir in tqdm(wass_frames):
         tqdm.write(wdir)
@@ -474,6 +474,11 @@ def wassgridsurface_main():
     parser.add_argument("-n", "--num_frames", type=int, default=-1, help="Number of frames to process. -1 to process all frames." )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
+    parser.add_argument("--dct_nfreqs", type=int, default=None, help="DCT interpolator number of frequencies" )
+    parser.add_argument("--dct_regalpha", type=float, default=None, help="DCT interpolator regularizer alpha" )
+    parser.add_argument("--dct_maxtol", type=float, default=None, help="DCT interpolator max function tolerance change" )
+    parser.add_argument("--dct_lr", type=float, default=None, help="DCT interpolator learning rate" )
+    parser.add_argument("--dct_maxiters", type=int, default=None, help="DCT interpolator max number of iterations" )
     args = parser.parse_args()
 
     if args.action == "generategridconfig":
@@ -572,7 +577,14 @@ def wassgridsurface_main():
               mf=args.mf,
               subsample_percent=args.ss,
               algorithm=args.ia,
-              user_mask_filename=args.mask )
+              user_mask_filename=args.mask,
+              alg_options = {
+                  "Nfreqs": args.dct_nfreqs,
+                  "REGULARIZER_ALPHA": args.dct_regalpha,
+                  "MAX_ITERS": args.dct_maxiters,
+                  "TOLERANCE_CHANGE": args.dct_maxtol,
+                  "LEARNING_RATE": args.dct_lr,
+                  })
 
         print("Gridding completed.")
 
