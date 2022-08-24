@@ -166,7 +166,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm="IDW" ):
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -204,6 +204,14 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
     Zmin = np.Inf
     Zmax = -np.Inf
     N_frames = 1
+
+    user_mask = np.ones( XX.shape, dtype=np.float32 )
+
+    if not user_mask_filename is None:
+        print("Loading %s"%user_mask_filename )
+        user_mask = cv.imread( user_mask_filename, cv.IMREAD_GRAYSCALE )
+        user_mask = (user_mask>0).astype(np.float32)
+
 
     print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
     interpolator = IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0] )
@@ -253,6 +261,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
                 plt.close()
 
             Zi, mask = interpolator(ZZ)
+            mask *= user_mask
+            Zi[ mask==0 ] = np.nan
 
             if mf>0:
                 Zi = Zi.astype(np.float32)
@@ -266,6 +276,12 @@ def grid( wass_frames, matfile, outdir, subsample_percent = 100, mf=0, algorithm
                 figfile = path.join(outdir,"gridded.png" )
                 fig.savefig(figfile,bbox_inches='tight')
                 plt.close()
+
+                zmin, zmax = np.nanmin(Zi), np.nanmax(Zi)
+                Zi_img = (Zi-zmin)/(zmax-zmin)*255
+                Zi_img[ np.isnan( Zi_img ) ] = 0
+                cv.imwrite( path.join(outdir,"grid_img.png"), Zi_img.astype(np.uint8) )
+                del zmin, zmax, Zi_img
 
 
             # I0 = cv.imread( path.join(wdir,"undistorted/00000000.png"))
@@ -457,6 +473,7 @@ def wassgridsurface_main():
     parser.add_argument("--mf", "--medianfilter", type=int, default=0, help="Median filter window size (0,3,5,7)" )
     parser.add_argument("-n", "--num_frames", type=int, default=-1, help="Number of frames to process. -1 to process all frames." )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
+    parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
     args = parser.parse_args()
 
     if args.action == "generategridconfig":
@@ -554,7 +571,8 @@ def wassgridsurface_main():
               outdir=args.outdir,
               mf=args.mf,
               subsample_percent=args.ss,
-              algorithm=args.ia )
+              algorithm=args.ia,
+              user_mask_filename=args.mask )
 
         print("Gridding completed.")
 
