@@ -133,7 +133,7 @@ public:
         mousedata.needs_repaint = true;
         mousedata.point_loc_set = false;
 
-        cv::namedWindow( wname, cv::WINDOW_AUTOSIZE | cv::WINDOW_KEEPRATIO | CV_GUI_NORMAL ); // The function does nothing if the window already exists
+        cv::namedWindow( wname, cv::WINDOW_AUTOSIZE | cv::WINDOW_KEEPRATIO | cv::WINDOW_NORMAL ); // The function does nothing if the window already exists
         cv::moveWindow( wname, 0, 0);
         //cv::imshow( wname, img );
         cv::setMouseCallback( wname, mouse_callback_handler, &(this->mousedata) );
@@ -159,7 +159,7 @@ public:
 
             if( mousedata.needs_repaint )
             {
-                cv::resize( iclone( cv::Rect(mousedata.p1, mousedata.p2) ), displayedimg, cv::Size(cvimg.cols / mousedata.display_scale, cvimg.rows / mousedata.display_scale) , 0, 0, CV_INTER_NN);
+                cv::resize( iclone( cv::Rect(mousedata.p1, mousedata.p2) ), displayedimg, cv::Size(cvimg.cols / mousedata.display_scale, cvimg.rows / mousedata.display_scale) , 0, 0, cv::INTER_NEAREST);
 
                 mousedata.needs_repaint = false;
             }

@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED( VERSION 3.1 )
 PROJECT( WASS )
 
-SET( WASS_VERSION_STR "1.5" )
+SET( WASS_VERSION_STR "1.6" )
 
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -54,7 +54,7 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS 1 )
 # Search for required dependencies
 #
 #
-FIND_PACKAGE( OpenCV REQUIRED )
+FIND_PACKAGE( OpenCV REQUIRED core imgproc calib3d highgui)
 IF( OpenCV_FOUND )
     MESSAGE( STATUS "OpenCV Version ${OpenCV_VERSION} found.")
 ENDIF()
@@ -65,7 +65,8 @@ IF( NOT Boost_INCLUDE_DIRS )
     set(Boost_USE_STATIC_RUNTIME OFF)
 	#set(Boost_DEBUG ON)
 	#set(Boost_DETAILED_FAILURE_MSG ON)
-    find_package(Boost 1.65.0 REQUIRED COMPONENTS system log_setup log date_time thread program_options filesystem )
+        #find_package(Boost 1.65.0 REQUIRED COMPONENTS system log_setup log date_time thread program_options filesystem )
+    find_package(Boost 1.65.0 REQUIRED COMPONENTS system date_time thread program_options filesystem )
     IF( NOT Boost_FOUND )
         MESSAGE( FATAL_ERROR " Boost was not found. Please set BOOST_ROOT path variable")
     ENDIF()
@@ -108,7 +109,7 @@ OPTION( BUILD_WASS_PREPARE "Build wass_prepare executable" ON )
 OPTION( BUILD_WASS_MATCH   "Build wass_match executable" ON )
 OPTION( BUILD_WASS_AUTOCALIBRATE  "Build wass_autocalibrate executable" ON )
 OPTION( BUILD_WASS_STEREO "Build wass_stereo executable" ON )
-OPTION( DISABLE_BOOST_LOG "Disable Boost Log subsystem" OFF )
+OPTION( DISABLE_BOOST_LOG "Disable Boost Log subsystem" ON )
 
 
 add_subdirectory( wass_lib )
@@ -154,3 +155,6 @@ MESSAGE( STATUS "OpenCV_VERSION:             ${OpenCV_VERSION} ")
 MESSAGE( STATUS "Boost_VERSION:              ${Boost_VERSION} ")
 MESSAGE( STATUS "DISABLE_BOOST_LOG:          ${DISABLE_BOOST_LOG} ")
 MESSAGE( STATUS "------------------------------------------------- ")
+MESSAGE( STATUS "${OpenCV_LIBS} ")
+MESSAGE( STATUS "${OpenCV_INCLUDE_DIRS} ")
+MESSAGE( STATUS "${Boost_LIBRARIES} ")

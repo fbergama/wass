@@ -26,7 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <boost/shared_ptr.hpp>
 
 #include <opencv2/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
 
 #ifdef WASS_ENABLE_OPTFLOW
 #include <opencv2/optflow.hpp>
@@ -966,7 +967,7 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     WASS::Render::render_disparity_float( (env.workdir / "disparity_final_scaled.png").string(), disp_float_fullsize );
     cv::Mat right_debug;
-    cv::cvtColor( env.right_rectified.clone(),right_debug, CV_GRAY2RGB);
+    cv::cvtColor( env.right_rectified.clone(),right_debug, cv::COLOR_GRAY2RGB);
 
     for( int i=0; i<right_debug.rows; ++i )
     {
@@ -1816,9 +1817,9 @@ int main( int argc, char* argv[] )
         {
             // Output debug
             cv::Mat l_temp;
-            cv::cvtColor(env.left_rectified.clone(),l_temp, CV_GRAY2RGB);
+            cv::cvtColor(env.left_rectified.clone(),l_temp, cv::COLOR_GRAY2RGB);
             cv::Mat r_temp;
-            cv::cvtColor(env.right_rectified.clone(),r_temp, CV_GRAY2RGB);
+            cv::cvtColor(env.right_rectified.clone(),r_temp, cv::COLOR_GRAY2RGB);
             cv::rectangle( l_temp, env.roi_comb_left, CV_RGB(255,0,0), 3 );
             cv::rectangle( r_temp, env.roi_comb_right, CV_RGB(255,0,0), 3 );
 

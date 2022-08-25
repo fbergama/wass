@@ -7,14 +7,12 @@ add_definitions(-DBOOST_LOG_DYN_LINK)
 add_definitions(-DWASS_USE_BOOST_LOG)
 endif()
 
+
 include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                      "../include/"
                       ${Boost_INCLUDE_DIRS}
                       ${OpenCV_INCLUDE_DIRS}
                     )
-
-
-
 
 
 add_executable( ${PROJECT_NAME} wass_prepare.cpp )
