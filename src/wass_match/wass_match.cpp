@@ -77,16 +77,16 @@ cv::Mat render_matches( cv::Mat img1, cv::Mat img2, const WASS::match::MatchList
     img2.copyTo( right_side );
 
     cv::Mat aux;
-    cv::cvtColor( out, aux, CV_GRAY2RGB );
+    cv::cvtColor( out, aux, cv::COLOR_GRAY2RGB );
     out = aux;
 
     for( size_t i=0; i<matches.size(); ++i )
     {
         const WASS::match::Match& m = matches[i];
 
-        cv::circle( out, cv::Point2f( m.imga_loc[0], m.imga_loc[1]), 2, CV_RGB(100,0,0), 1, CV_AA );
-        cv::circle( out, cv::Point2f( m.imgb_loc[0]+img1.cols, m.imgb_loc[1]), 2, CV_RGB(100,0,0), 1, CV_AA );
-        cv::line( out, cv::Point2f( m.imga_loc[0], m.imga_loc[1]), cv::Point2f( m.imgb_loc[0]+img1.cols, m.imgb_loc[1]), CV_RGB(255,255,0), 1, CV_AA );
+        cv::circle( out, cv::Point2f( m.imga_loc[0], m.imga_loc[1]), 2, CV_RGB(100,0,0), 1, cv::LINE_AA );
+        cv::circle( out, cv::Point2f( m.imgb_loc[0]+img1.cols, m.imgb_loc[1]), 2, CV_RGB(100,0,0), 1, cv::LINE_AA );
+        cv::line( out, cv::Point2f( m.imga_loc[0], m.imga_loc[1]), cv::Point2f( m.imgb_loc[0]+img1.cols, m.imgb_loc[1]), CV_RGB(255,255,0), 1, cv::LINE_AA );
     }
 
     return out;

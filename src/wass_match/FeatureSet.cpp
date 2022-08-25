@@ -18,11 +18,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 *************************************************************************/
 
+#include <opencv2/core/types.hpp>
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include "FeatureSet.h"
 #include "hires_timer.h"
-#include "surflib.h"
 #include "log.hpp"
 #include "incfg.hpp"
 #include <fstream>
@@ -30,6 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <boost/scoped_array.hpp>
 
 #include <opencv2/flann/flann.hpp>
+
+#include <opencv2/features2d.hpp>
 
 
 using WASS::match::FeatureSet;
@@ -48,21 +50,23 @@ INCFG_REQUIRE( int, FEATURE_INIT_SAMPLES, 1, "OpenSURF init samples" )
  * Utilities
  ****************************************/
 
-inline double dist2d( const Ipoint& a, const Ipoint& b )
+inline double dist2d( const cv::KeyPoint& a, const cv::KeyPoint& b )
 {
-    return sqrt( (a.x-b.x)*(a.x-b.x) + (a.y-b.y)*(a.y-b.y) );
+    return sqrt( (a.pt.x-b.pt.x)*(a.pt.x-b.pt.x) + (a.pt.y-b.pt.y)*(a.pt.y-b.pt.y) );
 }
+
+typedef std::pair< cv::KeyPoint, int > keypoint_index_pair;
 
 struct ImageArea {
     cv::Rect area;
-    std::vector<Ipoint> surfs;
+    std::vector< keypoint_index_pair > surfs;
 };
 
-bool sort_by_hessian( const Ipoint& a, const Ipoint& b ) {
-    return (a.hess>b.hess);
+bool sort_by_response( const keypoint_index_pair& a, const keypoint_index_pair& b ) {
+    return (a.first.response > b.first.response);
 }
 
-void create_areas( const int img_width, const int img_height, const int num_subdivisions, const int border_width, const IpVec& detected_surfs, std::vector< ImageArea >& areas ) {
+void create_areas( const int img_width, const int img_height, const int num_subdivisions, const int border_width, const std::vector< cv::KeyPoint >& detected_surfs, std::vector< ImageArea >& areas ) {
 
     const float width = (float)img_width/(float)num_subdivisions;
     const float height = (float)img_height/(float)num_subdivisions;
@@ -75,16 +79,16 @@ void create_areas( const int img_width, const int img_height, const int num_subd
     }
     for( unsigned int i=0; i<detected_surfs.size(); i++ ) {
         for( unsigned int j=0; j<areas.size(); j++ ) {
-            if( detected_surfs[i].x > border_width &&
-                detected_surfs[i].x < img_width-border_width &&
-                detected_surfs[i].y > border_width &&
-                detected_surfs[i].y < img_height-border_width &&
-                detected_surfs[i].x > areas[j].area.x &&
-                detected_surfs[i].y > areas[j].area.y &&
-                detected_surfs[i].x < areas[j].area.x + areas[j].area.width &&
-                detected_surfs[i].y < areas[j].area.y + areas[j].area.height  ) {
+            if( detected_surfs[i].pt.x > border_width &&
+                detected_surfs[i].pt.x < img_width-border_width &&
+                detected_surfs[i].pt.y > border_width &&
+                detected_surfs[i].pt.y < img_height-border_width &&
+                detected_surfs[i].pt.x > areas[j].area.x &&
+                detected_surfs[i].pt.y > areas[j].area.y &&
+                detected_surfs[i].pt.x < areas[j].area.x + areas[j].area.width &&
+                detected_surfs[i].pt.y < areas[j].area.y + areas[j].area.height  ) {
 
-                    areas[j].surfs.push_back( detected_surfs[i] );
+                    areas[j].surfs.push_back( keypoint_index_pair( detected_surfs[i], i ) );
             }
         }
 
@@ -190,16 +194,26 @@ void FeatureSet::detect( cv::Mat img, size_t max_features, SURF_Extractor_params
     }
 
 
-    // Call surf extractor
-    IplImage iplimg = surf_input;
-    std::vector<Ipoint> ipts;
+    //auto feature_detector = cv::SIFT::create( 10000, prms.n_octaves );
+    auto feature_detector = cv::KAZE::create( false, false, prms.hessian_thresh, prms.n_octaves, prms.n_octave_layers );
 
-    LOGI << "extracting features";
+    LOGI << "extracting " << feature_detector->getDefaultName() << " features";
     LOGI << prms;
 
-    surfDetDes( &iplimg, ipts, false, prms.n_octaves, prms.n_octave_layers, prms.init_samples, prms.hessian_thresh );
+    std::vector< cv::KeyPoint > ipts;
+    cv::Mat descriptors;
+    feature_detector->detectAndCompute( surf_input, cv::noArray(), ipts, descriptors );
 
     LOGI << ipts.size()  <<  " features found.";
+    //LOGI << " descriptors shape: " << descriptors.rows << " x " << descriptors.cols ;
+    //LOGI << " descriptors type:" << descriptors.type();
+
+    if( descriptors.type() != CV_32F )
+    {
+        LOGE << "Invalid descriptor type: float required";
+        return;
+    }
+
     LOGI << "Subsampling...";
 
     if( ipts.size() > 0 )
@@ -217,28 +231,32 @@ void FeatureSet::detect( cv::Mat img, size_t max_features, SURF_Extractor_params
             }
         }
         points_per_area = (int)( (float)points_per_area + (float)num_extra_pts_available/(float)areas.size() );
+        LOGI << points_per_area << " points per area";
 
         ipts.clear();
         pImpl->fts.clear();
 
         for( unsigned int i=0; i<areas.size(); i++ ) {
+            //LOGI << "Area " << i << ": " << areas[i].surfs.size() << " points.";
+
             if( areas[i].surfs.size() < 2 )
                 continue; // do nothing if there are no features in this area
 
-            std::sort( areas[i].surfs.begin(), areas[i].surfs.end(), sort_by_hessian );
+            std::sort( areas[i].surfs.begin(), areas[i].surfs.end(), sort_by_response );
 
             // Remove features that are too close together
-            std::vector<Ipoint>& surfs = areas[i].surfs;
+            //LOGI << "Removing features that are too close together...";
+            std::vector< keypoint_index_pair >& surfs = areas[i].surfs;
 
 
             size_t last = surfs.size()-1;
 
             for( size_t k=0; k<=last; ++k )
             {
-                const Ipoint& currfeat = surfs[k];
+                const cv::KeyPoint& currfeat = surfs[k].first;
                 for( size_t k2=k+1; k2<=last; ++k2 )
                 {
-                    if( dist2d( currfeat, surfs[k2]) < INCFG_GET(FEATURE_MIN_DISTANCE) )
+                    if( dist2d( currfeat, surfs[k2].first) < INCFG_GET(FEATURE_MIN_DISTANCE) )
                     {
                         surfs[k2] = surfs[last];
                         --last;
@@ -251,27 +269,35 @@ void FeatureSet::detect( cv::Mat img, size_t max_features, SURF_Extractor_params
             if( areas[i].surfs.size() > points_per_area ) {
                 areas[i].surfs.resize( points_per_area );
             }
+            //LOGI << "Area " << i << ": " << areas[i].surfs.size() << " points.";
         }
 
         unsigned int surf_index=0;
         unsigned int area_index=0;
         unsigned int num_skip=0;
         bool more_to_add = true;
+
         while( more_to_add ) { //Surfs are added in this order: surf0 of area0, surf0 of area1 ... surf0 of arean, surf1 of area0, surf1 of area1 ... and so on
 
             if( areas[area_index].surfs.size() > surf_index ) {
 
-                const Ipoint& f = areas[area_index].surfs[surf_index];
+                const keypoint_index_pair& fi = areas[area_index].surfs[surf_index];
+                const cv::KeyPoint& f = fi.first;
 
-                Feature newf( f.x, f.y, f.scale, f.orientation );
+                Feature newf( f.pt.x, f.pt.y, f.size, f.angle / 180.0f * M_PI );
+
                 //fix orientation
-                if (newf.angle < 0.0f) newf.angle = 0.0f; // might happen in case of numerical errors
-                if (newf.angle > static_cast<float>(2.0 * M_PI)) newf.angle = static_cast<float>( 2.0 * M_PI );
+                //if (newf.angle < 0.0f) newf.angle = 0.0f; // might happen in case of numerical errors
+                //if (newf.angle > static_cast<float>(2.0 * M_PI)) newf.angle = static_cast<float>( 2.0 * M_PI );
+                while( newf.angle < 0.0f )
+                    newf.angle += 2.0*M_PI;
+                while( newf.angle > 2*M_PI )
+                    newf.angle -= 2.0*M_PI;
 
-                newf.descriptor.resize(64);
+                newf.descriptor.resize( descriptors.cols );
                 for( size_t k=0; k<64; ++k )
                 {
-                    newf.descriptor[k] = f.descriptor[k];
+                    newf.descriptor[k] = descriptors.at<float>( fi.second, k );
                 }
 
                 pImpl->fts.push_back( newf );
@@ -382,7 +408,7 @@ void FeatureSet::renderToImage( cv::Mat img ) const
     for( size_t i=0; i<size(); ++i )
     {
         const Feature& ft = (*this)[i];
-        cv::circle( img, cv::Point( static_cast<int>(ft.x()), static_cast<int>(ft.y())), static_cast<int>(std::max<float>(ft.scale*2.0f, 1.0))+1, CV_RGB(0,0,0), 3, CV_AA );
+        cv::circle( img, cv::Point( static_cast<int>(ft.x()), static_cast<int>(ft.y())), static_cast<int>(std::max<float>(ft.scale*2.0f, 1.0))+1, CV_RGB(0,0,0), 3, cv::LINE_AA );
         cv::circle( img, cv::Point( static_cast<int>(ft.x()), static_cast<int>(ft.y())), static_cast<int>(std::max<float>(ft.scale*2.0f, 1.0)), CV_RGB(150,150,150), 1 );
     }
 

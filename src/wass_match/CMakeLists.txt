@@ -10,7 +10,6 @@ endif()
 include_directories( "${CMAKE_CURRENT_BINARY_DIR}/../include/"
                      "../include/"
                      "../wass_lib"
-                     "../OpenSURF"
                       ${INCFG_DIR}
                       ${Boost_INCLUDE_DIRS}
                       ${OpenCV_INCLUDE_DIRS}
@@ -29,11 +28,11 @@ add_executable( ${PROJECT_NAME} wass_match.cpp
               )
 
 if(MSVC)
-target_link_libraries( ${PROJECT_NAME} wass_lib OpenSURF ${OpenCV_LIBS} Boost::filesystem )
+target_link_libraries( ${PROJECT_NAME} wass_lib ${OpenCV_LIBS} Boost::filesystem )
 else()
     set(THREADS_PREFER_PTHREAD_FLAG ON)
     find_package(Threads REQUIRED)
-    target_link_libraries( ${PROJECT_NAME} Threads::Threads wass_lib OpenSURF ${OpenCV_LIBS} ${Boost_LIBRARIES} )
+    target_link_libraries( ${PROJECT_NAME} Threads::Threads wass_lib ${OpenCV_LIBS} ${Boost_LIBRARIES} )
 endif()
 
 INSTALL( TARGETS ${PROJECT_NAME} DESTINATION bin PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE )
