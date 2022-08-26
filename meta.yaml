@@ -1,0 +1,21 @@
+package:
+  name: wass
+  version: "1.6.0"
+
+source:
+  path: .
+
+requirements:
+  build:
+    - make
+    - cmake
+    - libopencv==4.5.5
+    - opencv==4.5.5
+    - boost-cpp==1.80.0
+    - boost==1.80.0
+
+  run:
+    - boost-cpp==1.80.0
+    - boost==1.80.0
+    - libopencv==4.5.5
+    - opencv==4.5.5

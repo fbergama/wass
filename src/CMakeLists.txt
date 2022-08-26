@@ -60,7 +60,7 @@ IF( OpenCV_FOUND )
 ENDIF()
 
 IF( NOT Boost_INCLUDE_DIRS )
-    set(Boost_USE_STATIC_LIBS ON)
+    set(Boost_USE_STATIC_LIBS OFF)
     set(Boost_USE_MULTITHREADED ON)
     set(Boost_USE_STATIC_RUNTIME OFF)
 	#set(Boost_DEBUG ON)
