@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 *************************************************************************/
 
 
-#include <boost/log/trivial.hpp>
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 
