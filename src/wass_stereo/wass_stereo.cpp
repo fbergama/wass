@@ -1688,6 +1688,25 @@ bool refine_flow( StereoMatchEnv& env )
 #endif
 
 
+int save_configuration( std::string filename )
+{
+    WASS::setup_logger();
+    LOG_SCOPE("wass_stereo");
+    LOGI << "Writing " << filename;
+
+    std::string cfg = incfg::ConfigOptions::instance().to_config_string();
+    std::ofstream ofs( filename );
+    if( !ofs.is_open() )
+    {
+        LOGE << "Unable to open " << filename << " stereo_config.txt for write";
+        return -1;
+    }
+    ofs << cfg;
+    ofs.close();
+
+    LOGI << "Done!";
+    return 0;
+}
 
 
 int main( int argc, char* argv[] )
@@ -1706,24 +1725,9 @@ int main( int argc, char* argv[] )
 
     if( argc>1 && std::string("--genconfig").compare(  std::string(argv[1]) ) == 0 )
     {
-        WASS::setup_logger();
-        LOG_SCOPE("wass_stereo");
-        LOGI << "Generating stereo_config.txt ...";
-
-        std::string cfg = incfg::ConfigOptions::instance().to_config_string();
-
-        std::ofstream ofs( "stereo_config.txt" );
-        if( !ofs.is_open() )
-        {
-            LOGE << "Unable to open stereo_config.txt for write";
-            return -1;
-        }
-        ofs << cfg;
-        ofs.close();
-
-        LOGI << "Done!";
-        return 0;
+        return save_configuration( "stereo_config.txt" );
     }
+
 
     if( argc != 3 && argc != 4 )
     {
@@ -1763,6 +1767,9 @@ int main( int argc, char* argv[] )
             LOGE << er.what();
             return -1;
         }
+
+        if( save_configuration( (env.workdir/"stereo_config.txt").string() ) != 0 )
+            LOGE << "Unable to save stereo configuration file";
     }
 
 
