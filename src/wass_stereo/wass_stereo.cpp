@@ -999,6 +999,8 @@ INCFG_REQUIRE( double, TRIANG_BBOX_TOP, -1.0, "Triangulation bounding box top co
 INCFG_REQUIRE( double, TRIANG_BBOX_LEFT, -1.0, "Triangulation bounding box left coordinate in px wrt. the left image (-1 to disable)")
 INCFG_REQUIRE( double, TRIANG_BBOX_RIGHT, -1.0, "Triangulation bounding box right coordinate in px wrt. the left image (-1 to disable)")
 INCFG_REQUIRE( double, TRIANG_BBOX_BOTTOM, -1.0, "Triangulation bounding box bottom coordinate in px wrt. the left image (-1 to disable)")
+INCFG_REQUIRE( std::string, LEFT_MASK_IMAGE, "none", "Filename of a (BW) left camera mask image. Note: File path is relative to current workdir. Use \"none\" for no mask" )
+INCFG_REQUIRE( std::string, RIGHT_MASK_IMAGE, "none", "Filename of a (BW) right camera mask image. Note: File path is relative to current workdir. Use \"none\" for no mask" )
 
 size_t triangulate( StereoMatchEnv& env )
 {
@@ -1015,6 +1017,27 @@ size_t triangulate( StereoMatchEnv& env )
     {
         bbox_topleft = cv::Vec2d(INCFG_GET(TRIANG_BBOX_LEFT), INCFG_GET(TRIANG_BBOX_TOP));
         bbox_botright = cv::Vec2d(INCFG_GET(TRIANG_BBOX_RIGHT), INCFG_GET(TRIANG_BBOX_BOTTOM) );
+    }
+
+    // Triangulation mask image
+    cv::Mat left_mask = env.left.clone()*0 + 1;
+    if( INCFG_GET( LEFT_MASK_IMAGE ) != std::string("none") )
+    {
+        std::string filename = (env.workdir/INCFG_GET(LEFT_MASK_IMAGE)).string();
+        LOGI << "Loading " << INCFG_GET(LEFT_MASK_IMAGE) << " as left camera mask";
+        cv::Mat aux = cv::imread( filename, cv::IMREAD_GRAYSCALE );
+        if( aux.cols == left_mask.cols && aux.rows == left_mask.rows )
+            left_mask = aux;
+    }
+
+    cv::Mat right_mask = env.left.clone()*0 + 1;
+    if( INCFG_GET( RIGHT_MASK_IMAGE ) != std::string("none") )
+    {
+        std::string filename = (env.workdir/INCFG_GET(RIGHT_MASK_IMAGE)).string();
+        LOGI << "Loading " << INCFG_GET(RIGHT_MASK_IMAGE) << " as right camera mask";
+        cv::Mat aux = cv::imread( filename, cv::IMREAD_GRAYSCALE );
+        if( aux.cols == right_mask.cols && aux.rows == right_mask.rows )
+            right_mask = aux;
     }
 
     env.pKDT_coarse_flow = new KDTreeImpl();
@@ -1089,8 +1112,6 @@ size_t triangulate( StereoMatchEnv& env )
 
     LOGI << "triangulating disparity map";
 
-    double mean_reproj_error = 0.0;
-
     int prog=0;
     int maxprog = env.roi_comb_right.height;
     int last_percent=0;
@@ -1164,6 +1185,18 @@ size_t triangulate( StereoMatchEnv& env )
                     continue;
                 }
 
+                if( left_mask.at< unsigned char >( pi[1], pi[0] ) == 0 )
+                {
+                    dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
+                    continue;
+                }
+
+                if( right_mask.at< unsigned char >( qi[1], qi[0] ) == 0 )
+                {
+                    dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
+                    continue;
+                }
+
 
                 // Angle check
                 if( min_angle > 0 )
@@ -1179,14 +1212,13 @@ size_t triangulate( StereoMatchEnv& env )
                     }
                 }
 
-                //env.coarse_flow.at<cv::Vec2f>( std::floor( qi[1] + 0.5 ), std::floor( qi[0]+0.5 ) ) = (pi-qi);
                 PointCloud<float>::Point newpoint;
                 newpoint.x = std::floor( qi[0]+0.5f );
                 newpoint.y = std::floor( qi[1]+0.5f );
                 newpoint.flow = (pi-qi);
-                env.pKDT_coarse_flow->cloud.pts.push_back( newpoint );
 
-                env.coarse_flow_mask.at<float>( std::floor( qi[1] + 0.5 ), std::floor( qi[0]+0.5 ) ) = 1.0f;
+                //env.pKDT_coarse_flow->cloud.pts.push_back( newpoint );
+                //env.coarse_flow_mask.at<float>( std::floor( qi[1] + 0.5 ), std::floor( qi[0]+0.5 ) ) = 1.0f;
 
 #if ENABLED(ITERATIVE_TRIANGULATION)
                 cv::Vec3d p3d = IterativeLinearLSTriangulation(cv::Point3d(p[0],p[1],p[2]),PP0,cv::Point3d(q[0],q[1],q[2]),PP1);
@@ -1208,6 +1240,7 @@ size_t triangulate( StereoMatchEnv& env )
 #endif
 
 
+#if 0
                 /* Reprojection error */
                 cv::Vec2d p3d_reproj0( p3d[0]/p3d[2] * env.intrinsics_left.at<double>(0,0) + env.intrinsics_left.at<double>(0,2) ,
                                       p3d[1]/p3d[2] * env.intrinsics_left.at<double>(1,1) + env.intrinsics_left.at<double>(1,2) );
@@ -1226,14 +1259,8 @@ size_t triangulate( StereoMatchEnv& env )
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_HIGH_REPROJECTION_ERROR;
                     continue;
                 }
+#endif
 
-                /**/
-
-                // New iterative method (not working right now)
-                //cv::Mat_<double> Xpt = IterativeLinearLSTriangulation(cv::Point3d(p[0],p[1],1.0), Pc0, cv::Point3d(q[0],q[1],1.0), Pc1 );
-                //cv::Vec3d p3d(Xpt(0),Xpt(1),Xpt(2));
-                //cv::Mat_<double> Xpt = IterativeLinearLSTriangulation(cv::Point3d(pi[0],pi[1],1.0), Pc0, cv::Point3d(qi[0],qi[1],1.0), Pc1 );
-                //cv::Vec3d p3d(Xpt(0),Xpt(1),Xpt(2));
 
                 // point distance check
                 const double ptdistance = cv::norm( p3d );
@@ -1250,7 +1277,6 @@ size_t triangulate( StereoMatchEnv& env )
                     continue;
                 }
 
-                mean_reproj_error += reproj_error;
                 const unsigned char R = env.right.at<unsigned char>( (int)qi[1], (int)qi[0] );
                 const unsigned char G = R;
                 const unsigned char B = R;
@@ -1277,17 +1303,15 @@ size_t triangulate( StereoMatchEnv& env )
         }
         prog++;
         int percent = (int)((float)prog/(float)maxprog*100);
-        if( percent-last_percent>=15 )
+        if( percent-last_percent >= 15 )
         {
             last_percent = percent;
             LOGI << "... " << percent << "%";
         }
     }
-    mean_reproj_error /= (double)n_pts_triangulated;
 
     LOGI << "... 100%";
     LOGI << n_pts_triangulated << " valid points found";
-    LOGI << "average reprojection error: " << mean_reproj_error << " (px)";
 
 #if ENABLED(PLOT_3D_REPROJECTION)
     cv::imwrite( (env.workdir/"/undistorted/00000000_P0.png").string(), dbg_P0 );
@@ -1379,6 +1403,7 @@ static cv::Vec3b computeColor(float fx, float fy)
 
     return pix;
 }
+
 
 static void drawOpticalFlow(const cv::Mat_<cv::Point2f>& flow, cv::Mat& dst, float maxmotion = -1)
 {
@@ -1489,6 +1514,7 @@ void vr_warpImage(cv::Mat &dst, cv::Mat &src, cv::Mat &flow_u, cv::Mat &flow_v)
     }
     remap(src, dst, mapX, mapY, cv::INTER_LINEAR, cv::BORDER_REPLICATE);
 }
+
 
 bool refine_flow( StereoMatchEnv& env )
 {
@@ -1748,7 +1774,7 @@ int main( int argc, char* argv[] )
 
     {
         // Config file load
-        LOGI << "Loding configuration file " << argv[1];
+        LOGI << "Loading configuration file " << argv[1];
 
         std::ifstream ifs( argv[1] );
         if( !ifs.is_open() )
