@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wassgridsurface"
 description = "WASS surface gridding tool"
-readme = "README.rst"
+readme = "README.md"
 requires-python = ">=3.9"
 keywords = ["WASS", "3D", "Interpolation"]
 license = {text = "GPL3"}
