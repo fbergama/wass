@@ -19,7 +19,7 @@ package will be created in ./dist/
 ## Installing
 
 ```
-python -m pip install ./dist/wassgridsurface-0.5.1.tar.gz
+python -m pip install ./dist/wassgridsurface-0.5.3.tar.gz
 ```
 
 ## Upload via twine
