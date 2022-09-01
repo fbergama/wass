@@ -1,0 +1,12 @@
+on: [push]
+
+jobs:
+  hello_world_job:
+    runs-on: ubuntu-latest
+    name: A job to build the container wass
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v1
+    - name: Build the container wass
+      id: build_wass
+      run: pwd && ls && ls .. && docker build -t bergamasco/wass:latest .
