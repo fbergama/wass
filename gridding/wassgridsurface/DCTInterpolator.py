@@ -28,8 +28,11 @@ class DCTInterpolator:
 
     def __init__( self, img_width, img_height, alg_options ):
 
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using {self.device} device")
+
         C = dct(np.eye(img_height), type=3, norm='ortho')
-        self.Dc = torch.tensor( C, requires_grad=True, dtype=torch.float )
+        self.Dc = torch.tensor( C, requires_grad=True, dtype=torch.float, device=self.device )
         self.height = img_height
         self.width = img_width
         self.Nfreqs = DCTInterpolator._get_setting_helper(alg_options,"Nfreqs")
@@ -71,9 +74,9 @@ class DCTInterpolator:
         I = np.copy(I)
 
         Dc = self.Dc
-        Iorig = torch.tensor(I, dtype=torch.float)
-        Imask = torch.tensor(mask, dtype=torch.float)
-        x = torch.rand( (self.Nfreqs,self.Nfreqs), requires_grad=True )
+        Iorig = torch.tensor(I, dtype=torch.float, device=self.device )
+        Imask = torch.tensor(mask, dtype=torch.float, device=self.device )
+        x = torch.rand( (self.Nfreqs,self.Nfreqs), requires_grad=True, device=self.device )
         xprev = torch.clone(x)
 
         optimizer = torch.optim.Rprop( [x], lr=self.LEARNING_RATE )
@@ -112,5 +115,5 @@ class DCTInterpolator:
 
         full_signal = torch.nn.functional.pad( x, (0,self.height-self.Nfreqs,0,self.width-self.Nfreqs), "constant", 0 )
         Irec = Dc.T @ full_signal @ Dc
-        Irec = torch.clone(Irec).detach().numpy()
+        Irec = torch.clone(Irec).cpu().detach().numpy()
         return  Irec, np.ones_like( mask )
