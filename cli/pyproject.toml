@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wasscli"
+description = "WASS command line interface"
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["WASS", "3D", "Interpolation"]
+license = {text = "GPL3"}
+authors = [
+  {email = "filippo.bergamasco@unive.it"},
+  {name = "Filippo Bergamasco"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta"
+]
+dependencies = [
+  "tqdm", "PyInquirer", "colorama"
+]
+dynamic = ["version"]
+
+[project.urls]
+homepage = "https://sites.google.com/unive.it/wass"
+#documentation = "https://readthedocs.org"
+repository = "https://github.com/fbergama/wass/tree/master/cli"
+#changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[project.scripts]
+wasscli = "wasscli:wasscli_main"
+
+[tool.setuptools.dynamic]
+version = {attr = "wasscli.wasscli.VERSION"}
+
+# ... other project metadata fields as specified in:
+#     https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
