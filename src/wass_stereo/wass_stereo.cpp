@@ -1741,12 +1741,12 @@ int main( int argc, char* argv[] )
     WASS::exe_name_to_stdout( "wass_stereo" );
 
     if( argc == 1 )
-	{
+    {
         std::cout << "Usage:" << std::endl;
         std::cout << "wass_stereo [--genconfig] <config_file> <workdir> [--measure]" << std::endl << std::endl;
-		std::cout << "Not enough arguments, aborting." << std::endl;
-		return -1;
-	}
+        std::cout << "Not enough arguments, aborting." << std::endl;
+        return 0;
+    }
 
 
     if( argc>1 && std::string("--genconfig").compare(  std::string(argv[1]) ) == 0 )

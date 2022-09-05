@@ -59,7 +59,7 @@ int main( int argc, char* argv[] )
         std::cout << "Usage:" << std::endl;
         std::cout << "wass_autocalibrate <workdirs_file>" << std::endl << std::endl;
         std::cout << "Not enough arguments, aborting." << std::endl;
-        return -1;
+        return 0;
     }
 
     if( argc != 2 )
