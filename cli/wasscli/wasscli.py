@@ -15,10 +15,12 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
+
 import shutil
 import colorama
 import subprocess
 import os
+import numpy as np
 import glob
 import tqdm
 from PyInquirer import prompt, Separator, Validator, ValidationError
@@ -36,11 +38,10 @@ WASS_PIPELINE = {
 SUPPORTED_IMAGE_FORMATS = ["tif", "tiff", "png", "jpg", "jpeg"]
 
 
-WORKDIR = {
-    "location": os.getcwd()
-}
 
-
+#--------------------------------------------------------------------------------
+# Helper functions
+#--------------------------------------------------------------------------------
 
 def find_wass_pipeline():
     print("Searching for WASS pipeline executables...", end="")
@@ -65,6 +66,7 @@ def find_wass_pipeline():
     print( colorama.Fore.GREEN+"OK"+colorama.Style.RESET_ALL)
     return True
     
+
 
 def check_workdir_structure():
     required_dirs = ["config","input","input/cam0","input/cam1"]
@@ -101,6 +103,7 @@ def initialize_working_directory():
     print("")
 
 
+
 def get_image_files( directory ):
 
     for extension in SUPPORTED_IMAGE_FORMATS:
@@ -109,6 +112,20 @@ def get_image_files( directory ):
             return sorted(imgfiles)
     return []
 
+
+
+def get_workdirs():
+    workdirs = sorted(glob.glob("output/*_wd"))
+    if len(workdirs) == 0:
+        print( colorama.Fore.RED+"ERROR: "+colorama.Style.RESET_ALL, end="")
+        print("output/ directory looks empty. Please run Prepare first.")
+        return None
+    return workdirs
+
+
+#--------------------------------------------------------------------------------
+# WASS Pipeline operations
+#--------------------------------------------------------------------------------
 
 def do_prepare():
 
@@ -155,7 +172,6 @@ def do_prepare():
                 raise ValidationError(
                     message='Please enter a valid number',
                     cursor_position=len(document.text))  # Move cursor to end
-                    
     questions = [
         {
             'type': 'input',
@@ -182,14 +198,32 @@ def do_prepare():
 
 
 def do_match():
-    workdirs = sorted(glob.glob("output/*_wd"))
-    if len(workdirs) == 0:
-        print( colorama.Fore.RED+"ERROR: "+colorama.Style.RESET_ALL, end="")
-        print("output/ directory looks empty. Please run Prepare first.")
-        return False
+    workdirs = get_workdirs()
+    if workdirs is None: return False
+
+    suggested_num_to_match = min( 50, len(workdirs))
+
+    class NumFramesValidator(Validator):
+        def validate(self, document):
+            if int(document.text)<0 or int(document.text)>len(workdirs):
+                raise ValidationError(
+                    message='Please enter a valid number',
+                    cursor_position=len(document.text))  # Move cursor to end
+    questions = [
+        {
+            'type': 'input',
+            'name': 'framestomatch',
+            'message': 'How many frames do you want to use for matching? (1 ... %d, suggested: %d)'%(len(workdirs), suggested_num_to_match),
+            'validate': NumFramesValidator
+        }
+    ]
+    answers = prompt(questions)
+
+    indices = np.random.permutation( len(workdirs) )[ :int(answers["framestomatch"])]
+    print("Matcher will use the following frames: ", indices)
 
     print("Running wass_match... please be patient")
-    for t in tqdm.trange(len(workdirs)):
+    for t in tqdm.tqdm( indices ):
         wdirname = "output/%06d_wd"%t
         ret = subprocess.run( [WASS_PIPELINE["wass_match"], "config/matcher_config.txt", wdirname], capture_output=True )
         if ret.returncode != 0:
@@ -199,6 +233,82 @@ def do_match():
             return False
         else:
             tqdm.tqdm.write(ret.stdout.decode("ascii"))
+
+    print( colorama.Fore.GREEN+("Match completed!")+colorama.Style.RESET_ALL)
+    return True
+
+
+def do_autocalibrate():
+    workdirs = get_workdirs()
+    if workdirs is None: return False
+
+    with open('output/workspaces.txt', 'w') as f:
+        f.write('\n'.join(workdirs))
+
+    print("Running wass_autocalibrate... please be patient")
+    ret = subprocess.run( [WASS_PIPELINE["wass_autocalibrate"], "output/workspaces.txt"], capture_output=True )
+    if ret.returncode != 0:
+        print( colorama.Fore.RED+("ERROR while running wass_autocalibrate ****************")+colorama.Style.RESET_ALL)
+        print(ret.stdout.decode("ascii"))
+        print( colorama.Fore.RED+("*******************************************************")+colorama.Style.RESET_ALL)
+        return False
+    else:
+        tqdm.tqdm.write(ret.stdout.decode("ascii"))
+
+    return True
+
+
+def do_stereo():
+    workdirs = get_workdirs()
+    if workdirs is None: return False
+    questions = [
+        {
+            'type': 'confirm',
+            'name': 'processall',
+            'message': 'Do you want to reconstruct all the sequence? Select N to reconstruct 000000_wd only.',
+            'default': True
+        }
+    ]
+    answers = prompt(questions)
+
+    while( True ):
+        print("Running wass_stereo... please be patient")
+        for t in tqdm.trange( len(workdirs) if answers["processall"] else 1 ):
+            wdirname = "output/%06d_wd"%t
+            ret = subprocess.run( [WASS_PIPELINE["wass_stereo"],"config/stereo_config.txt", wdirname ], capture_output=True )
+            if ret.returncode != 0:
+                print( colorama.Fore.RED+("ERROR while running wass_stereo on frame %06d ****************"%t)+colorama.Style.RESET_ALL)
+                print(ret.stdout.decode("ascii"))
+                print( colorama.Fore.RED+("*********************************************************************")+colorama.Style.RESET_ALL)
+                return False
+            else:
+                tqdm.tqdm.write(ret.stdout.decode("ascii"))
+
+        print( colorama.Fore.GREEN+("Stereo completed!")+colorama.Style.RESET_ALL)
+        if not answers["processall"]:
+            print("Check output/000000_wd and edit config/stereo_config.txt if needed.")
+            questions = [
+                {
+                    'type': 'confirm',
+                    'name': 'tryagain',
+                    'message': 'Try again?',
+                    'default': False
+                }
+            ]
+            answers2 = prompt(questions)
+            if not answers2["tryagain"]:
+                return True
+        else:
+            return True
+
+#--------------------------------------------------------------------------------
+# Gridding operations
+#--------------------------------------------------------------------------------
+
+
+#--------------------------------------------------------------------------------
+# Main
+#--------------------------------------------------------------------------------
 
 
 def wasscli_main():
@@ -223,8 +333,6 @@ def wasscli_main():
             initialize_working_directory()
         return 0
             
-
-    do_match()
     
     while True:
         questions = [
@@ -251,6 +359,10 @@ def wasscli_main():
             do_prepare()
         elif answers["wass_step"] == "Match":
             do_match()
+        elif answers["wass_step"] == "Autocalibrate":
+            do_autocalibrate()
+        elif answers["wass_step"] == "Stereo":
+            do_stereo()
         elif answers["wass_step"] == "Quit":
             return 0
         else:
