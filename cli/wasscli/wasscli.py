@@ -24,9 +24,11 @@ import numpy as np
 import glob
 import tqdm
 from PyInquirer import prompt, Separator, Validator, ValidationError
+from wassgridsurface import wassgridsurface_main
+
 colorama.init()
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 
 
 WASS_PIPELINE = {
@@ -254,6 +256,7 @@ def do_autocalibrate():
         return False
     else:
         tqdm.tqdm.write(ret.stdout.decode("ascii"))
+        print( colorama.Fore.GREEN+("Autocalibrate completed!")+colorama.Style.RESET_ALL)
 
     return True
 
@@ -271,39 +274,49 @@ def do_stereo():
     ]
     answers = prompt(questions)
 
-    while( True ):
-        print("Running wass_stereo... please be patient")
-        for t in tqdm.trange( len(workdirs) if answers["processall"] else 1 ):
-            wdirname = "output/%06d_wd"%t
-            ret = subprocess.run( [WASS_PIPELINE["wass_stereo"],"config/stereo_config.txt", wdirname ], capture_output=True )
-            if ret.returncode != 0:
-                print( colorama.Fore.RED+("ERROR while running wass_stereo on frame %06d ****************"%t)+colorama.Style.RESET_ALL)
-                print(ret.stdout.decode("ascii"))
-                print( colorama.Fore.RED+("*********************************************************************")+colorama.Style.RESET_ALL)
-                return False
-            else:
-                tqdm.tqdm.write(ret.stdout.decode("ascii"))
+    with open("output/planes.txt", "w") as fplanes:
 
-        print( colorama.Fore.GREEN+("Stereo completed!")+colorama.Style.RESET_ALL)
-        if not answers["processall"]:
-            print("Check output/000000_wd and edit config/stereo_config.txt if needed.")
-            questions = [
-                {
-                    'type': 'confirm',
-                    'name': 'tryagain',
-                    'message': 'Try again?',
-                    'default': False
-                }
-            ]
-            answers2 = prompt(questions)
-            if not answers2["tryagain"]:
+        while( True ):
+            print("Running wass_stereo... please be patient")
+            for t in tqdm.trange( len(workdirs) if answers["processall"] else 1, unit="frames" ):
+                wdirname = "output/%06d_wd"%t
+                ret = subprocess.run( [WASS_PIPELINE["wass_stereo"],"config/stereo_config.txt", wdirname ], capture_output=True )
+                if ret.returncode != 0:
+                    print( colorama.Fore.RED+("ERROR while running wass_stereo on frame %06d ****************"%t)+colorama.Style.RESET_ALL)
+                    print(ret.stdout.decode("ascii"))
+                    print( colorama.Fore.RED+("*********************************************************************")+colorama.Style.RESET_ALL)
+                    return False
+                else:
+                    tqdm.tqdm.write(ret.stdout.decode("ascii"))
+                    with open( wdirname+"/plane.txt", "r" ) as finplane:
+                        s = finplane.readlines()
+                        fplanes.write((" ".join(s).replace("\n",""))+"\n")
+
+            print( colorama.Fore.GREEN+("Stereo completed!")+colorama.Style.RESET_ALL)
+
+            if not answers["processall"]:
+                print("Check output/000000_wd and edit config/stereo_config.txt if needed.")
+                questions = [
+                    {
+                        'type': 'confirm',
+                        'name': 'tryagain',
+                        'message': 'Try again?',
+                        'default': False
+                    }
+                ]
+                answers2 = prompt(questions)
+                if not answers2["tryagain"]:
+                    return True
+            else:
                 return True
-        else:
-            return True
 
 #--------------------------------------------------------------------------------
 # Gridding operations
 #--------------------------------------------------------------------------------
+# TODO: To be implemented
+
+def do_grid():
+    pass
 
 
 #--------------------------------------------------------------------------------
@@ -312,11 +325,13 @@ def do_stereo():
 
 
 def wasscli_main():
-    print("WASS Command Line Interface")
+    print("\n WASS-cli v.", VERSION )
+    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\nCopyright (C) Filippo Bergamasco 2022 \n\n")
 
     if not find_wass_pipeline():
         return -1
 
+    os.chdir("/Users/fibe/tmp/aaa")
     print("Current directory is: ", os.getcwd() )
     if not check_workdir_structure():
         print("Current directory does not appear as a WASS working directory.")
@@ -331,8 +346,7 @@ def wasscli_main():
         answers = prompt(questions)
         if answers["initialize"]:
             initialize_working_directory()
-        return 0
-            
+            return 0
     
     while True:
         questions = [
@@ -345,16 +359,15 @@ def wasscli_main():
                     "Match",
                     "Autocalibrate",
                     "Stereo",
-                    Separator(),
-                    "Grid",
-                    "Plot",
+                    # Separator(),
+                    # "Grid",
+                    # "Plot",
                     Separator(),
                     "Quit"
                 ]
             }
         ]
         answers = prompt(questions)
-        print(answers)
         if answers["wass_step"] == "Prepare":
             do_prepare()
         elif answers["wass_step"] == "Match":
@@ -364,12 +377,10 @@ def wasscli_main():
         elif answers["wass_step"] == "Stereo":
             do_stereo()
         elif answers["wass_step"] == "Quit":
+            print("Bye.")
             return 0
         else:
             print("Choice not available")
-
-
-    return 0
 
 
 
