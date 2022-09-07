@@ -24,11 +24,11 @@ import numpy as np
 import glob
 import tqdm
 from PyInquirer import prompt, Separator, Validator, ValidationError
-from wassgridsurface import wassgridsurface_main
+#from wassgridsurface import wassgridsurface_main
 
 colorama.init()
 
-VERSION = "0.1.1"
+VERSION = "0.1.2"
 
 
 WASS_PIPELINE = {
@@ -54,7 +54,7 @@ def find_wass_pipeline():
             print( colorama.Fore.RED+"ERROR: "+colorama.Style.RESET_ALL, end="")
             print( "%s not found. Please add the WASS executable files to system PATH"%program_name )
             return False
-        
+
         ret = subprocess.run(program_exe, capture_output=False, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL )
         if ret.returncode != 0:
             print("")
@@ -67,7 +67,7 @@ def find_wass_pipeline():
 
     print( colorama.Fore.GREEN+"OK"+colorama.Style.RESET_ALL)
     return True
-    
+
 
 
 def check_workdir_structure():
@@ -183,7 +183,7 @@ def do_prepare():
         }
     ]
     answers = prompt(questions)
-    
+
     print("Running wass_prepare... please be patient")
     for t in tqdm.trange(int(answers["framestoprepare"])):
         wdirname = "output/%06d_wd"%t
@@ -331,7 +331,8 @@ def wasscli_main():
     if not find_wass_pipeline():
         return -1
 
-    os.chdir("/Users/fibe/tmp/aaa")
+    #os.chdir("/Users/fibe/tmp/aaa")
+
     print("Current directory is: ", os.getcwd() )
     if not check_workdir_structure():
         print("Current directory does not appear as a WASS working directory.")
@@ -347,7 +348,7 @@ def wasscli_main():
         if answers["initialize"]:
             initialize_working_directory()
             return 0
-    
+
     while True:
         questions = [
             {
