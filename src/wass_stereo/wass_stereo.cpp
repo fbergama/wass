@@ -1743,9 +1743,9 @@ int main( int argc, char* argv[] )
     if( argc == 1 )
     {
         std::cout << "Usage:" << std::endl;
-        std::cout << "wass_stereo [--genconfig] <config_file> <workdir> [--measure]" << std::endl << std::endl;
+        std::cout << "wass_stereo [--genconfig] <config_file> <workdir> [--measure] [--rectify-only]" << std::endl << std::endl;
         std::cout << "Not enough arguments, aborting." << std::endl;
-        return 0;
+        return -1;
     }
 
 
@@ -1846,7 +1846,6 @@ int main( int argc, char* argv[] )
         WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseR.txt").string(), env.Rpose1);
         WASS::save_matrix_txt<double>( (env.workdir/"/Cam1_poseT.txt").string(), env.Tpose1);
 
-
         {
             // Output debug
             cv::Mat l_temp;
@@ -1863,6 +1862,12 @@ int main( int argc, char* argv[] )
             }
 
             cv::imwrite( (env.workdir/"stereo.jpg").string(), Istereo );
+        }
+
+        if(  argc==4 && std::string("--rectify-only").compare(  std::string(argv[3]) ) == 0 )
+        {
+            LOGI << "All done.";
+            return 0;
         }
 
         if(  argc==4 && std::string("--measure").compare(  std::string(argv[3]) ) == 0 )
