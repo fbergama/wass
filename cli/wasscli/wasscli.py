@@ -20,15 +20,17 @@ import shutil
 import colorama
 import subprocess
 import os
+import sys
 import numpy as np
 import glob
 import tqdm
+from tqdm.contrib.concurrent import thread_map
 from PyInquirer import prompt, Separator, Validator, ValidationError
 #from wassgridsurface import wassgridsurface_main
 
 colorama.init()
 
-VERSION = "0.1.2"
+VERSION = "0.1.3"
 
 
 WASS_PIPELINE = {
@@ -38,6 +40,7 @@ WASS_PIPELINE = {
     "wass_stereo": None
 }
 SUPPORTED_IMAGE_FORMATS = ["tif", "tiff", "png", "jpg", "jpeg"]
+NUM_PARALLEL_PROCESSES = 4
 
 
 
@@ -200,6 +203,8 @@ def do_prepare():
 
 
 def do_match():
+    global NUM_PARALLEL_PROCESSES
+
     workdirs = get_workdirs()
     if workdirs is None: return False
 
@@ -225,7 +230,8 @@ def do_match():
     print("Matcher will use the following frames: ", indices)
 
     print("Running wass_match... please be patient")
-    for t in tqdm.tqdm( indices ):
+
+    def _match_task( t ):
         wdirname = "output/%06d_wd"%t
         ret = subprocess.run( [WASS_PIPELINE["wass_match"], "config/matcher_config.txt", wdirname], capture_output=True )
         if ret.returncode != 0:
@@ -235,6 +241,10 @@ def do_match():
             return False
         else:
             tqdm.tqdm.write(ret.stdout.decode("ascii"))
+        return True
+
+    r = thread_map(_match_task, indices, max_workers=NUM_PARALLEL_PROCESSES )
+
 
     print( colorama.Fore.GREEN+("Match completed!")+colorama.Style.RESET_ALL)
     return True
@@ -262,6 +272,8 @@ def do_autocalibrate():
 
 
 def do_stereo():
+    global NUM_PARALLEL_PROCESSES
+
     workdirs = get_workdirs()
     if workdirs is None: return False
     questions = [
@@ -278,7 +290,8 @@ def do_stereo():
 
         while( True ):
             print("Running wass_stereo... please be patient")
-            for t in tqdm.trange( len(workdirs) if answers["processall"] else 1, unit="frames" ):
+
+            def _stereo_task( t ):
                 wdirname = "output/%06d_wd"%t
                 ret = subprocess.run( [WASS_PIPELINE["wass_stereo"],"config/stereo_config.txt", wdirname ], capture_output=True )
                 if ret.returncode != 0:
@@ -291,6 +304,9 @@ def do_stereo():
                     with open( wdirname+"/plane.txt", "r" ) as finplane:
                         s = finplane.readlines()
                         fplanes.write((" ".join(s).replace("\n",""))+"\n")
+                return True
+
+            r = thread_map(_stereo_task, range( len(workdirs) if answers["processall"] else 1) , max_workers=NUM_PARALLEL_PROCESSES )
 
             print( colorama.Fore.GREEN+("Stereo completed!")+colorama.Style.RESET_ALL)
 
@@ -325,13 +341,17 @@ def do_grid():
 
 
 def wasscli_main():
+
+    global NUM_PARALLEL_PROCESSES
+
     print("\n WASS-cli v.", VERSION )
     print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\nCopyright (C) Filippo Bergamasco 2022 \n\n")
 
     if not find_wass_pipeline():
         return -1
 
-    #os.chdir("/Users/fibe/tmp/aaa")
+    if len(sys.argv) == 2 and os.path.isdir( sys.argv[1] ):
+        os.chdir( sys.argv[1] )
 
     print("Current directory is: ", os.getcwd() )
     if not check_workdir_structure():
@@ -364,6 +384,7 @@ def wasscli_main():
                     # "Grid",
                     # "Plot",
                     Separator(),
+                    "Set number of parallel workers",
                     "Quit"
                 ]
             }
@@ -377,6 +398,21 @@ def wasscli_main():
             do_autocalibrate()
         elif answers["wass_step"] == "Stereo":
             do_stereo()
+        elif answers["wass_step"] == "Set number of parallel workers":
+
+            print("Current number of workers: %d"%NUM_PARALLEL_PROCESSES )
+            questions = [
+                {
+                    'type': 'input',
+                    'name': 'nparallel',
+                    'message': 'How many parallel workers should wasscli use? 1..8',
+                }
+            ]
+            answers = prompt(questions)
+            try:
+                NUM_PARALLEL_PROCESSES = int( answers["nparallel"] )
+            except Exception:
+                print("Wrong number.")
         elif answers["wass_step"] == "Quit":
             print("Bye.")
             return 0
@@ -386,5 +422,4 @@ def wasscli_main():
 
 
 if __name__ == "__main__":
-    print("REMOVE THIS!!!!")
     wasscli_main()
