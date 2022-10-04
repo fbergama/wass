@@ -1745,7 +1745,7 @@ int main( int argc, char* argv[] )
         std::cout << "Usage:" << std::endl;
         std::cout << "wass_stereo [--genconfig] <config_file> <workdir> [--measure] [--rectify-only]" << std::endl << std::endl;
         std::cout << "Not enough arguments, aborting." << std::endl;
-        return -1;
+        return 0;
     }
 
 
