@@ -231,6 +231,9 @@ int main( int argc, char* argv[] )
         cv::Mat debug_matches = render_matches( img0, img1, all_matches );
         cv::imwrite( (workdir/"matches.png").string(), debug_matches );
 
+        LOGI << "Saving matches";
+        if( !save_matches(workdir/"matches_unfiltered.txt", all_matches) )
+            return -1;
 
         LOGI << all_matches.size() << " total matches recovered";
         LOGI << "epipolar filter...";
@@ -263,14 +266,30 @@ int main( int argc, char* argv[] )
         }
 
         cv::Mat mask;
-        cv::Mat E = cv::findEssentialMat( pts_0, pts_1, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.999, INCFG_GET(MATCHER_MAX_EPI_DISTANCE)/focal, mask );
+        cv::Mat E = cv::findEssentialMat( pts_0, pts_1, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.9999, INCFG_GET(MATCHER_MAX_EPI_DISTANCE)/focal, mask );
 
         size_t num_inliers=0;
         for( int i=0; i<mask.rows*mask.cols; ++i)
             num_inliers += mask.at<bool>( i )?1:0;
 
         LOGI << num_inliers << " inliers after epipolar filter (max epi distance allowed: " << INCFG_GET(MATCHER_MAX_EPI_DISTANCE) << " px)" << std::endl;
+
         LOGI << "computed essential matrix: " << std::endl << E;
+        {
+            WASS::match::MatchList all_matches_filtered;
+            for( size_t i=0; i<all_matches.size(); ++i )
+            {
+                if( mask.at<bool>( static_cast<int>(i) ) )
+                {
+                    all_matches_filtered.push_back( all_matches[i] );
+                }
+            }
+            LOGI << "Saving matches";
+            if( !save_matches(workdir/"matches_epionly.txt", all_matches_filtered) )
+                return -1;
+        }
+
+
         LOGI << "recovering pose...";
 
         cv::Mat R;

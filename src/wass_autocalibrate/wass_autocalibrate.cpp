@@ -38,6 +38,23 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 static boost::filesystem::path workdir;
 using WASS::epi::ErrorStats;
 
+int count_valid_points( const cv::Mat& mask, const cv::Mat& R, const cv::Mat& T,
+        const std::vector< cv::Point2d >& pts_0_n, const std::vector< cv::Point2d >& pts_1_n )
+{
+    size_t num_valid = 0;
+    for( int i=0; i<mask.rows; ++i )
+    {
+        if( mask.at<bool>(i) )
+        {
+            auto p0 = cv::Vec2d( pts_0_n[i].x, pts_0_n[i].y );
+            auto p1 = cv::Vec2d( pts_1_n[i].x, pts_1_n[i].y );
+            cv::Vec3d pt3d = triangulate( p0, p1, R, T );
+            if( pt3d[2]>1 )
+                num_valid++;
+        }
+    }
+    return num_valid;
+}
 
 
 int main( int argc, char* argv[] )
@@ -51,6 +68,7 @@ int main( int argc, char* argv[] )
     std::vector< cv::Point2d > pts_1;
     std::vector< cv::Point2d > pts_0_n;
     std::vector< cv::Point2d > pts_1_n;
+    cv::Mat nodist = cv::Mat::zeros( 5,1,CV_32F );
 
     WASS::exe_name_to_stdout( "wass_autocalibrate" );
 
@@ -110,10 +128,10 @@ int main( int argc, char* argv[] )
             }
 
             // Load matches
-            std::ifstream ifs( ((*it)/"matches.txt").string().c_str() );
+            std::ifstream ifs( ((*it)/"matches_epionly.txt").string().c_str() );
             if( !ifs.is_open() )
             {
-                LOGE << "Unable to load matches from " << (*it)/"matches.txt" << ", skipping";
+                LOGE << "Unable to load matches from " << (*it)/"matches_epionly.txt" << ", skipping";
                 continue;
             }
             size_t n_matches;
@@ -151,16 +169,84 @@ int main( int argc, char* argv[] )
             return -1;
         }
 
-        LOGI << "Estimating global essential matrix";
 
+        cv::Mat E;
         cv::Mat mask;
-        cv::Mat E = cv::findEssentialMat( pts_0_n, pts_1_n, 1.0, cv::Point2d(0,0), cv::LMEDS, 0.99, /*2px max distance*/ 2.0/K0.at<double>(0,0), mask );
+
+        LOGI << "Estimating global Essential matrix";
+        E = cv::findEssentialMat( pts_0_n, pts_1_n, 1.0, cv::Point2d(0,0), cv::RANSAC, 0.999999, /*1.5px max distance*/ 1.5/K0.at<double>(0,0), mask );
+        LOGI << cv::sum(mask)[0] << " inliers (max epi-distance 1.5px)";
+
+        cv::Mat R1, R2;
+        cv::Mat T1;
+        LOGI << "Decomposing E";
+        cv::decomposeEssentialMat(E, R1, R2, T1 );
+
+        std::vector< cv::Mat > R_alternatives;
+        std::vector< cv::Mat > T_alternatives;
+        R_alternatives.push_back(R1);
+        R_alternatives.push_back(R1);
+        R_alternatives.push_back(R2);
+        R_alternatives.push_back(R2);
+        T_alternatives.push_back(T1);
+        T_alternatives.push_back(-T1);
+        T_alternatives.push_back(T1);
+        T_alternatives.push_back(-T1);
 
         cv::Mat R;
         cv::Mat T;
-        cv::recoverPose( E, pts_0_n, pts_1_n, R, T, 1.0, cv::Point2d(0,0), mask );
+        size_t best_valid = 0;
+        double bestR00=0.0;
+        for( int i=0; i<4; ++i )
+        {
+            const cv::Mat& currR = R_alternatives[i];
+            const cv::Mat& currT = T_alternatives[i];
 
+            LOGI << "----------------------------------------";
+            LOGI << " Alternative " << i;
+            LOGI << "----------------------------------------";
+            LOGI << "R: \n" << currR;
+            LOGI << "T: \n" << currT;
+            size_t nvalid = count_valid_points( mask, currR, currT, pts_0_n, pts_1_n );
+            LOGI << nvalid << " valid points";
+
+            if( nvalid>best_valid || (nvalid==best_valid && currR.at<double>(0,0)>bestR00 ) )
+            {
+                best_valid = nvalid;
+                bestR00 = currR.at<double>(0,0);
+                R = currR.clone();
+                T = currT.clone();
+            }
+        }
+
+        LOGI << "----------------------------------------";
+        LOGI << " Winning R/T pair: ";
+        LOGI << "R: \n" << R;
+        LOGI << "T: \n" << T;
+
+
+#if 0
+        // Old Essential matrix decomposition logic
+        //
+        LOGI << "Estimating global essential matrix";
+
+        cv::Mat mask;
+        cv::Mat E = cv::findEssentialMat( pts_0_n, pts_1_n, 1.0, cv::Point2d(0,0), cv::LMEDS, 0.999999, /*2px max distance*/ 2.0/K0.at<double>(0,0), mask );
         LOGI << cv::sum(mask)[0] << " inliers";
+
+        LOGI << "Recovering pose from the Essential matrix";
+        cv::Mat R;
+        cv::Mat T;
+        cv::recoverPose( E, pts_0_n, pts_1_n, R, T, 1.0, cv::Point2d(0,0), mask );
+        LOGI << cv::sum(mask)[0] << " inliers";
+
+        if( cv::sum(mask)[0] < 24 )
+        {
+            // Negative depth
+            LOGE << "Too few inlier points for SBA, probably the essential matrix is not correctly estimated. aborting.";
+            return -1;
+        }
+#endif
 
         std::vector< cv::Vec2d > pts0;
         std::vector< cv::Vec2d > pts1;
@@ -168,24 +254,37 @@ int main( int argc, char* argv[] )
         std::vector< cv::Vec2d > pts1_px;
         std::vector< cv::Vec3d > pts3d;
 
+        size_t n_invalid=0;
         for( int i=0; i<mask.rows; ++i )
         {
             if( mask.at<bool>(i) )
             {
-                pts0.push_back( cv::Vec2d( pts_0_n[i].x, pts_0_n[i].y ) );
-                pts1.push_back( cv::Vec2d( pts_1_n[i].x, pts_1_n[i].y ) );
-                pts0_px.push_back( cv::Vec2d( pts_0[i].x, pts_0[i].y ) );
-                pts1_px.push_back( cv::Vec2d( pts_1[i].x, pts_1[i].y ) );
-                cv::Vec3d pt3d = triangulate( pts0.back(), pts1.back(), R, T );
-                pts3d.push_back( pt3d );
+                auto p0 = cv::Vec2d( pts_0_n[i].x, pts_0_n[i].y );
+                auto p1 = cv::Vec2d( pts_1_n[i].x, pts_1_n[i].y );
+                cv::Vec3d pt3d = triangulate( p0, p1, R, T );
 
                 if( pt3d[2] < 0 )
                 {
-                    // Negative depth
-                    LOGE << "An estimated 3D point is behind the stereo rig.";
-                    return -1;
+                    n_invalid++;
+                }
+                else
+                {
+                    pts0.push_back( p0 );
+                    pts1.push_back( p1 );
+                    pts0_px.push_back( cv::Vec2d( pts_0[i].x, pts_0[i].y ) );
+                    pts1_px.push_back( cv::Vec2d( pts_1[i].x, pts_1[i].y ) );
+                    pts3d.push_back( pt3d );
                 }
             }
+        }
+
+        LOGI << pts0.size() << " valid points after triangulation.";
+        LOGI << n_invalid << " points triangulate behind the camera (to be removed).";
+
+        if( pts0.size()<24 )
+        {
+            LOGE << "Too few inlier points for SBA, probably the pose is not correctly estimated. Aborting.";
+            return -1;
         }
 
         pts_0_n.clear(); pts_1_n.clear();
@@ -199,7 +298,7 @@ int main( int argc, char* argv[] )
 
         er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
         double ransac_avgerr = er.avg;
-        LOGI << "Epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
+        LOGI << "Epipolar error before SBA: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
 
 
         std::cout << "[P|70|100]" << std::endl;
@@ -226,7 +325,6 @@ int main( int argc, char* argv[] )
         std::vector< cv::Mat > sbaT;
 
         // run sba
-
         sba_driver( cam_poses, pts3d, points_rep, sbaR, sbaT );
 
         cv::Mat R1i = sbaR[0].t();
@@ -236,6 +334,9 @@ int main( int argc, char* argv[] )
         T = sbaR[1]*T1i + sbaT[1];
         T = T/cv::norm(T);
 
+        LOGI << "Final SBA-optimized R/T pair: ";
+        LOGI << "R: \n" << R;
+        LOGI << "T: \n" << T;
 
         // Recompute epipolar error
         cv::Mat Tx = cv::Mat::zeros(3,3,CV_64FC1);
@@ -251,7 +352,7 @@ int main( int argc, char* argv[] )
         F = K1i.t() * Ex * K0i;
 
         er = WASS::epi::evaluate_epipolar_error( F, pts0_px, pts1_px );
-        LOGI << "SBA-optimized epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max;
+        LOGI << "\u001b[7m SBA-optimized epipolar error: " << er.avg <<  "+-" << er.std << " px. Min: " << er.min << " Max: " << er.max << "\u001b[0m";
 
 
         LOGI << "Computing 0->1 matches homography";
@@ -276,11 +377,11 @@ int main( int argc, char* argv[] )
             }
         } else
         {
-            LOGE << "SBA failed. reverting to ransac calibration";
+            LOGE << "SBA failed.";
+            return -1;
         }
 
         LOGI << "All done!";
-
         std::cout << "[P|100|100]" << std::endl;
 
     } catch( std::runtime_error& ex )
