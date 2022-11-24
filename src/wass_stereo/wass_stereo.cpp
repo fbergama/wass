@@ -222,6 +222,9 @@ struct StereoMatchEnv
     cv::Mat Rinv;
     cv::Mat Tinv;
 
+    int left_index;     // Index of the left camera
+    int right_index;    // Index of the right camera
+
     double cam_distance;
 
     // Projection Matrix
@@ -234,10 +237,10 @@ struct StereoMatchEnv
     cv::Mat Tpose1;
 
     // Rectification data
-    cv::Matx33d H0;
-    cv::Matx33d H0i;
-    cv::Matx33d H1;
-    cv::Matx33d H1i;
+    cv::Matx33d HL;
+    cv::Matx33d HLi;
+    cv::Matx33d HR;
+    cv::Matx33d HRi;
     cv::Rect roi_comb_left;
     cv::Rect roi_comb_right;
 
@@ -260,8 +263,14 @@ struct StereoMatchEnv
 
     void swapLeftRight()
     {
-        cv::Mat aux;
+        {
+            int aux;
+            aux = left_index;
+            left_index = right_index;
+            right_index = aux;
+        }
 
+        cv::Mat aux;
         aux=left;
         left = right;
         right = aux;
@@ -290,7 +299,7 @@ struct StereoMatchEnv
     {
         if( INCFG_GET( USE_CUSTOM_STEREORECTIFY ) )
         {
-            cv::Vec3d uvr = (use_left ? H0i : H1i ) * cv::Vec3d( uv[0], uv[1], 1 );
+            cv::Vec3d uvr = (use_left ? HLi : HRi ) * cv::Vec3d( uv[0], uv[1], 1 );
             return cv::Vec2d( uvr[0] / uvr[2], uvr[1] / uvr[2] );
         }
         else
@@ -381,8 +390,10 @@ bool load_data( StereoMatchEnv& env )
     // Load images
     try {
         env.left = cv::imread( (env.workdir / "undistorted/00000000.png").string(), cv::IMREAD_GRAYSCALE );
+        env.left_index = 0;
         LOGI << "image 0 loaded, Size: " << env.left.cols << "x" << env.left.rows;
         env.right = cv::imread( (env.workdir / "undistorted/00000001.png").string(), cv::IMREAD_GRAYSCALE );
+        env.right_index = 1;
         LOGI << "image 1 loaded, Size: " << env.right.cols << "x" << env.right.rows;
 
         // Save a scaled version of the input images
@@ -485,13 +496,21 @@ bool rectify( StereoMatchEnv& env )
     {
         LOGI << "Using WASS custom stereorectify";
 
-        stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.H0, env.H1, ROI);
+        stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.HL, env.HR, ROI);
 
-        env.H0i = env.H0.inv();
-        env.H1i = env.H1.inv();
+        env.HLi = env.HL.inv();
+        env.HRi = env.HR.inv();
 
-        cv::warpPerspective( env.left, env.left_rectified, env.H0, imgsize );
-        cv::warpPerspective( env.right, env.right_rectified, env.H1, imgsize );
+        if( env.left_index == 0 ) {
+            WASS::save_matrix_txt<double>( (env.workdir / "H0_rect.txt").string(), cv::Mat(env.HL) );
+            WASS::save_matrix_txt<double>( (env.workdir / "H1_rect.txt").string(), cv::Mat(env.HR) );
+        } else {
+            WASS::save_matrix_txt<double>( (env.workdir / "H1_rect.txt").string(), cv::Mat(env.HL) );
+            WASS::save_matrix_txt<double>( (env.workdir / "H0_rect.txt").string(), cv::Mat(env.HR) );
+        }
+
+        cv::warpPerspective( env.left, env.left_rectified, env.HL, imgsize );
+        cv::warpPerspective( env.right, env.right_rectified, env.HR, imgsize );
 
         env.roi_comb_left = ROI;//cv::Rect(0,0,env.left_rectified.cols, env.left_rectified.rows);//ROI;
         env.roi_comb_right = ROI;//cv::Rect(0,0,env.right_rectified.cols, env.right_rectified.rows);//ROI;
