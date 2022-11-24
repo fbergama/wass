@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED( VERSION 3.1 )
 PROJECT( WASS )
 
-SET( WASS_VERSION_STR "1.6" )
+SET( WASS_VERSION_STR "1.7" )
 
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/Modules/")
@@ -70,7 +70,7 @@ IF( NOT Boost_INCLUDE_DIRS )
 		set(Boost_USE_STATIC_LIBS OFF)
 		set(Boost_USE_STATIC_RUNTIME OFF)
 	ENDIF()
-    
+
 	set(Boost_DEBUG ON)
 	#set(Boost_DETAILED_FAILURE_MSG ON)
         #find_package(Boost 1.65.0 REQUIRED COMPONENTS system log_setup log date_time thread program_options filesystem )
