@@ -8,58 +8,89 @@ It was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) a
 
 ## Official project page
 
-[http://www.dais.unive.it/wass](http://www.dais.unive.it/wass)
+[https://sites.google.com/unive.it/wass](https://sites.google.com/unive.it/wass)
 
 
-## Try it via Docker
+## Installation instructions 
 
-1. Install [Docker](https://www.docker.com/products/docker-desktop) and [Docker compose](https://docs.docker.com/compose/).
-2. Download the file [docker-compose.xml](https://raw.githubusercontent.com/fbergama/wass/Docker/docker-compose.yml)
-3. Download the [test data](http://www.dais.unive.it/wass/WASS_TEST_docker.zip) and unzip the package in the same directory of `docker-compose.xml`
-4. Create a directory named `out`. Your WASS working directory should contain the following: `docker-compose.yml`, `out/`, `WASS_TEST/`
+Since WASS 1.6 there is no need to compile OpenCV from scratch. Just install the
+latest version with your favourite package manager.
 
-5. In **Linux/OSX**:
-    - open a terminal
-    - cd into the directory containing `docker-compose.yml`
-    - run the command: 
-```
-export UID=$(id -u) && export GID=$(id -g) && docker-compose up
-```
-
-5. In **Windows**: 
-    - open the PowerShell prompt
-    - cd into the directory containing `docker-compose.yml`
-    - run the command:
-```
-docker-compose up
-```
-
-6. Open your browser to [http://localhost:8080](http://localhost:8080) and click in sequence: `prepare`,  `match`, `auto-calibrate` and `dense stereo`. The processed data will be placed in the `out` directory. If you want to process the whole dataset without using the web interface you can run the following:
+On Linux Ubuntu-like:
 
 ```
-docker run -i -t --network wass-net bergamasco/wass:runall
+$ sudo apt install libopencv-dev
+``` 
+
+On OSX:
+
+```
+$ brew install opencv
 ```
 
-To spawn a shell inside the container:
+### Steps:
+
+
+1. Download WASS and checkout the latest WASS branch:
 
 ```
-docker exec -i -t  -u $(id -u):$(id -g) wass /bin/bash
+$ git clone https://github.com/fbergama/wass.git
+$ cd wass
+$ git checkout v_1.7
+$ git submodule update --init
+```
+
+2. Prepare for build
+
+```
+$ mkdir build
+$ cd build
+```
+
+3. Build and install
+
+```
+$ cmake ../src
+$ make install
+```
+
+4. Suggested: add the `../dist/bin` directory to your path!
+
+
+5. Test if it works
+
+```
+wass_stereo  v. 1.7_heads/v_1.7-0-g4177b1f
+----------------------------------------------
+ [Release] Linux-5.15.0-46-generic - GNU, OpenCV 4.5.4
+
+Usage:
+wass_stereo [--genconfig] <config_file> <workdir> [--measure] [--rectify-only]
+
+Not enough arguments, aborting.
 ```
 
 
+## How to run it
 
-### Run it with your data
+I suggest you to use the new *wasscli command line interface* to automate the WASS pipeline execution:
 
-Edit the lines 13, 19 and 25 of `docker-compose.yml` (the ones with `source: "<dir>"`) to set the location of configuration, input and output directory respectively. Refer to the pipeline documentation:
-- [http://www.dais.unive.it/wass/documentation/stereo.html](http://www.dais.unive.it/wass/documentation/stereo.html)
-- [http://www.dais.unive.it/wass/documentation/matcher.html](http://www.dais.unive.it/wass/documentation/matcher.html)
+[https://pypi.org/project/wasscli/](https://pypi.org/project/wasscli/)
 
-to properly setup the configuration files.
+
+
+## Post processing
+
+To grid the reconstructed point clouds consider the new wassgridsurface tool:
+
+[https://pypi.org/project/wassgridsurface/](https://pypi.org/project/wassgridsurface/)
+
+
 
 ## License
 
 ```
-Copyright (C) 2016-2020 Filippo Bergamasco 
+Copyright (C) 2016-2022 Filippo Bergamasco 
 
 WASS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
