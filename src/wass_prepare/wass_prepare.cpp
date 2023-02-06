@@ -30,6 +30,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "wassglobal.hpp"
 #include "log.hpp"
 #include "utils.hpp"
+#include "incfg.hpp"
+
+
+INCFG_REQUIRE( double, CLAHE_CLIPLIMIT, 2.0, "CLAHE cliplimit parameter" )
+INCFG_REQUIRE( int, CLAHE_TILEGRIDSIZE, 0, "CLAHE tile grid size (set to 0 to disable CLAHE). 150 is a good value to start" )
 
 
 namespace po = boost::program_options;
@@ -114,6 +119,30 @@ int main( int argc, char* argv[] )
         return -1;
     }
 
+
+
+    try
+    {
+        LOGI << "Checking if configuration file exists...";
+        std::string config_filename =  (calibdir/"prepare_config.txt").string();
+
+        std::ifstream ifs( config_filename );
+        if( !ifs.is_open() )
+        {
+            LOGE << "Unable to load " << config_filename;
+        }
+        else
+        {
+            incfg::ConfigOptions::instance().load( ifs );
+            LOGI << "Settings loaded";
+        }
+
+    } catch( std::runtime_error& er )
+    {
+        LOGE << er.what();
+        return -1;
+    }
+
     LOGI << "Creating " << wdir;
     boost::filesystem::create_directories( wdir );
 
@@ -154,7 +183,21 @@ int main( int argc, char* argv[] )
         return -1;
     }
 
+    cv::Ptr< cv::CLAHE > clahe;
+
+    if( INCFG_GET( CLAHE_TILEGRIDSIZE ) > 0 )
+    {
+        clahe = cv::createCLAHE( INCFG_GET( CLAHE_CLIPLIMIT ), cv::Size( INCFG_GET(CLAHE_TILEGRIDSIZE), INCFG_GET(CLAHE_TILEGRIDSIZE) ) );
+    }
+
     cv::Mat img = cv::imread( vm["c0"].as<std::string>(), cv::IMREAD_GRAYSCALE );
+    if( clahe )
+    {
+        cv::Mat dst;
+        clahe->apply( img, dst );
+        img = dst;
+    }
+
     cv::Mat img_undist;
     cv::undistort( img, img_undist, intr0, dist0 );
     cv::imwrite( (undist_dir/"00000000.png").string(), img_undist );
@@ -162,6 +205,12 @@ int main( int argc, char* argv[] )
     std::cout << "[P|50|100]" << std::endl;
 
     img = cv::imread( vm["c1"].as<std::string>(), cv::IMREAD_GRAYSCALE );
+    if( clahe )
+    {
+        cv::Mat dst;
+        clahe->apply( img, dst );
+        img = dst;
+    }
     cv::undistort( img, img_undist, intr1, dist1 );
     cv::imwrite( (undist_dir/"00000001.png").string(), img_undist );
 
