@@ -402,7 +402,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
         ret, imgjpeg = cv.imencode(".jpg", I0 )
-        outdata.push_Z( Zi*1000, (N_frames-1)/fps if fps>0 else 0, FRAME_IDX, imgjpeg )
+        outdata.push_Z( Zi*1000, float(N_frames-1)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg )
+
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
         #cv.imwrite( path.join(outdir,"area_interp.png"), cv.resize(aux,(800,800), interpolation=cv.INTER_NEAREST ) )
