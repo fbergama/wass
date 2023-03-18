@@ -21,7 +21,7 @@ import numpy as np
 
 class NetCDFOutput:
 
-    def __init__( self, filename=None ):
+    def __init__( self, filename=None, M=8, N=8 ):
 
         self.rootgrp = None
         if filename == None:
@@ -72,19 +72,22 @@ class NetCDFOutput:
         self.ky.long_name = "Vertical wavenumbers"
         self.ky.field = "Ky, scalar, series"
 
-        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y",) )
+        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y",), chunksizes=(8,M,N) )
         self.Z.units = "millimeter"
         self.Z.long_name = "Z data on time over the XY grid"
         self.Z.field = "Z, scalar, series"
 
         self.maskZ = self.rootgrp.createVariable( "maskZ", "f4", ("X","Y",) )
-        self.maskZ.units = "millimeter"
+        self.maskZ.units = ""
         self.maskZ.long_name = "Z mask over the XY grid"
         self.maskZ.field = "Z, scalar, series"
 
         self.vlen_t = self.rootgrp.createVLType(np.uint8, "vlenu8")
         self.cam0images = self.rootgrp.createVariable( "cam0images", self.vlen_t, ("count") )
         self.cam0images.long_name = "Camera0 undistorted images in JPEG format"
+
+        self.cam0masks = self.rootgrp.createVariable( "cam0masks", self.vlen_t, ("count") )
+        self.cam0masks.long_name = "Camera0 user-defined masks in PNG format"
 
 
     def set_grids( self, XX, YY ):
@@ -94,7 +97,7 @@ class NetCDFOutput:
         self.xgrid[:] = XX
         self.ygrid[:] = YY
 
-    
+
     def set_kxky( self, kx, ky ):
         if self.rootgrp == None:
             return
@@ -137,7 +140,7 @@ class NetCDFOutput:
     #         if idx%10 == 0:
     #             self.rootgrp.sync() # Flush data to disk
 
-    def push_Z( self, Zdata, time, workdir, image=None ):
+    def push_Z( self, Zdata, time, workdir, image=None, imagemask=None ):
         if self.rootgrp != None:
             idx = self.count.shape[0]
             self.Z[idx,:,:] = np.expand_dims( Zdata, axis=0 )
@@ -147,6 +150,9 @@ class NetCDFOutput:
 
             if not image is None:
                 self.cam0images[idx] = image
+
+            if not imagemask is None:
+                self.cam0masks[idx] = imagemask
 
             if idx%10 == 0:
                 self.rootgrp.sync() # Flush data to disk
@@ -163,3 +169,6 @@ class NetCDFOutput:
     def close( self ):
         if self.rootgrp != None:
             self.rootgrp.close()
+
+
+

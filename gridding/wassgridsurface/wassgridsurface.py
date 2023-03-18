@@ -1,6 +1,6 @@
 """
 wassgridsurface
-Copyright (C) 2022 Filippo Bergamasco
+Copyright (C) 2023 Filippo Bergamasco
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.5.3"
+VERSION = "0.5.4"
 
 
 import argparse
@@ -180,7 +180,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     P0cam = gridsetup["P0cam"]
     P1cam = gridsetup["P1cam"]
 
-    outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ) )
+    outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ), M=XX.shape[0], N=XX.shape[1] )
     baseline = gridsetup["CAM_BASELINE"].item(0)
 
     fps = gridsetup["fps"].item(0)
@@ -398,11 +398,19 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         Zmin = min( Zmin, np.nanmin(Zi) )
         Zmax = max( Zmax, np.nanmax(Zi) )
 
+
         I0 = cv.imread( path.join(wdir,"00000000_s.png"))
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
         ret, imgjpeg = cv.imencode(".jpg", I0 )
-        outdata.push_Z( Zi*1000, float(N_frames-1)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg )
+
+        mask_filename = path.join( wdir, "undistorted", "mask0.png" ) 
+        imagemask = None
+        if path.exists( mask_filename ): 
+            with open( mask_filename, "rb" ) as f:
+                imagemask = np.fromfile(f, np.uint8 );
+
+        outdata.push_Z( Zi*1000, float(N_frames-1)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask )
 
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
@@ -490,7 +498,7 @@ def wassgridsurface_main():
             f.write("area_center_x=0.0\n")
             f.write("area_center_y=-35.0\n")
             f.write("area_size=50\n")
-            f.write("N=256\n")
+            f.write("N=1024\n")
 
         print("All done, exiting.")
         return
