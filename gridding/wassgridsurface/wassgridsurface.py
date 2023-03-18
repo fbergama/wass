@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.5.4"
+VERSION = "0.5.5"
 
 
 import argparse
@@ -78,7 +78,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
     toNorm = np.array( [[ 2.0/Iw, 0     , -1, 0],
                         [ 0     , 2.0/Ih, -1, 0],
                         [ 0,      0,       1, 0],
-                        [ 0,      0,       0, 1]], dtype=np.float )
+                        [ 0,      0,       0, 1]], dtype=float )
 
     SCALEi = 1.0/baseline
     P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
