@@ -24,13 +24,15 @@ import sys
 import numpy as np
 import glob
 import tqdm
+from time import sleep
+from random import randint
 from tqdm.contrib.concurrent import thread_map
 from PyInquirer import prompt, Separator, Validator, ValidationError
 #from wassgridsurface import wassgridsurface_main
 
 colorama.init()
 
-VERSION = "0.1.3"
+VERSION = "0.1.4"
 
 
 WASS_PIPELINE = {
@@ -291,7 +293,13 @@ def do_stereo():
         while( True ):
             print("Running wass_stereo... please be patient")
 
+
             def _stereo_task( t ):
+                if t<NUM_PARALLEL_PROCESSES:
+                    nsec = t*2
+                    print("Waiting %d secs. to optimize the disk access..."%nsec )
+                    sleep(nsec)
+
                 wdirname = "output/%06d_wd"%t
                 ret = subprocess.run( [WASS_PIPELINE["wass_stereo"],"config/stereo_config.txt", wdirname ], capture_output=True )
                 if ret.returncode != 0:
