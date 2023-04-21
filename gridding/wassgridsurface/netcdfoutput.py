@@ -140,9 +140,11 @@ class NetCDFOutput:
     #         if idx%10 == 0:
     #             self.rootgrp.sync() # Flush data to disk
 
-    def push_Z( self, Zdata, time, workdir, image=None, imagemask=None ):
+    def push_Z( self, Zdata, time, workdir, image=None, imagemask=None, idx=None ):
         if self.rootgrp != None:
-            idx = self.count.shape[0]
+            if idx is None:
+                idx = self.count.shape[0]
+
             self.Z[idx,:,:] = np.expand_dims( Zdata, axis=0 )
             self.count[idx] = idx
             self.time[idx] = time
