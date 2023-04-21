@@ -67,7 +67,7 @@ class DCTInterpolator:
         return default_settings[setting_name]
 
 
-    def __call__( self, I ):
+    def __call__( self, I, verbose=True ):
         orig_pts_mask = 1-np.isnan(I).astype(np.uint8)
         mask = orig_pts_mask.astype(np.float32)
         I[ np.isnan(I) ] = 0
@@ -105,9 +105,11 @@ class DCTInterpolator:
             if ii%50 == 0:
                 loss, data_loss, regularizer_loss = closure( output_all_loss_components=True )
                 fdelta = torch.max( torch.abs(x-xprev)).item()
-                tqdm.write("Iteration %05d - Loss: %6.5f =  data: %6.5f  reg: %6.5f   F max delta: %3.5f"%(ii, loss.item(), data_loss.item(), regularizer_loss.item(), fdelta ) )
+                if verbose:
+                    tqdm.write("Iteration %05d - Loss: %6.5f =  data: %6.5f  reg: %6.5f   F max delta: %3.5f"%(ii, loss.item(), data_loss.item(), regularizer_loss.item(), fdelta ) )
                 if fdelta < TOLERANCE_CHANGE:
-                    print("Reached min tolerance change, exiting")
+                    if verbose:
+                        print("Reached min tolerance change, exiting")
                     break
 
             xprev = torch.clone(x)

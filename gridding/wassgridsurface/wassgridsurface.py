@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.5.5"
+VERSION = "0.6.0"
 
 
 import argparse
@@ -27,11 +27,14 @@ import scipy.interpolate
 import os
 import sys
 import glob
+import time
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2 as cv
 from os import path
 from tqdm import tqdm
+from tqdm.contrib.concurrent import thread_map
+
 
 import colorama
 colorama.init()
@@ -166,7 +169,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None ):
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1 ):
     step=150
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -200,10 +203,10 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
                              np.zeros( (5,1), dtype=np.float32),
                              gridsetup["P0plane"])
 
-    Zmean = 0.0
-    Zmin = np.Inf
-    Zmax = -np.Inf
-    N_frames = 1
+
+    wass_frames_with_indices = [ x for x in enumerate(wass_frames) ]
+    N_frames = len( wass_frames_with_indices )
+
 
     user_mask = np.ones( XX.shape, dtype=np.float32 )
 
@@ -214,12 +217,27 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
 
     print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
-    interpolator = IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options )
+    print("Using %d thread(s) for reconstruction..."%NUM_PARALLEL_PROCESSES )
 
-    for wdir in tqdm(wass_frames):
+
+    # Create a dedicated interpolator for each parallel process
+    interpolators = [ IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options ) for x in range(NUM_PARALLEL_PROCESSES) ]
+
+    Zmeans = []
+    Zmins = []
+    Zmaxs = []
+
+    def _grid_task( iteration_element ):
+
+        idx, wdir = iteration_element
+        interpolator = interpolators[ idx % NUM_PARALLEL_PROCESSES ]
+
         tqdm.write(wdir)
         dirname = path.split( wdir )[-1]
         FRAME_IDX = int(dirname[:-3])
+
+        if idx<=NUM_PARALLEL_PROCESSES:
+            time.sleep( idx ) # wait to optimize disk access
 
         meshname = path.join( wdir, "mesh_cam.xyzC")
         mesh = load_camera_mesh(meshname)
@@ -253,14 +271,14 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
             ZZ = np.nanmedian( ZZ, axis=-1 )
 
-            if N_frames == 1:
+            if idx == 0:
                 fig = plt.figure( figsize=(20,20))
                 plt.imshow( ZZ, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
                 figfile = path.join(outdir,"points.png" )
                 fig.savefig(figfile,bbox_inches='tight')
                 plt.close()
 
-            Zi, mask = interpolator(ZZ)
+            Zi, mask = interpolator(ZZ, verbose=(NUM_PARALLEL_PROCESSES==1) )
             mask *= user_mask
             Zi[ mask==0 ] = np.nan
 
@@ -270,7 +288,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
                 Zi = cv.medianBlur(Zi, ksize=mf)
                 Zi[ mask==0 ] = np.nan
 
-            if N_frames == 1:
+            if idx == 0:
                 fig = plt.figure( figsize=(20,20))
                 plt.imshow( Zi, vmin=gridsetup["zmin"], vmax=gridsetup["zmax"] )
                 figfile = path.join(outdir,"gridded.png" )
@@ -393,10 +411,11 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
             return
 
 
-        # Zi here contains the interpolated surface
-        Zmean = Zmean + (np.nanmean(Zi)-Zmean)/N_frames
-        Zmin = min( Zmin, np.nanmin(Zi) )
-        Zmax = max( Zmax, np.nanmax(Zi) )
+        # Zi now contains the interpolated surface
+
+        Zmeans.append( np.nanmean(Zi) )
+        Zmins.append( np.nanmin(Zi) )
+        Zmaxs.append( np.nanmax(Zi) )
 
 
         I0 = cv.imread( path.join(wdir,"00000000_s.png"))
@@ -410,7 +429,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
             with open( mask_filename, "rb" ) as f:
                 imagemask = np.fromfile(f, np.uint8 );
 
-        outdata.push_Z( Zi*1000, float(N_frames-1)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask )
+        outdata.push_Z( Zi*1000, float(idx)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask, idx=idx )
 
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
@@ -422,9 +441,14 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         # fig.savefig(figfile,bbox_inches='tight')
         # plt.close()
 
-        N_frames += 1
+    #------
+    r = thread_map(_grid_task, wass_frames_with_indices, max_workers=NUM_PARALLEL_PROCESSES )
 
 
+
+    Zmin = np.amin( np.array(Zmins)) 
+    Zmax = np.amax( np.array(Zmaxs)) 
+    Zmean = np.mean( np.array(Zmeans)) 
     outdata.add_meta_attribute("zmin", Zmin )
     outdata.add_meta_attribute("zmax", Zmax )
     outdata.add_meta_attribute("zmean", Zmean )
@@ -433,7 +457,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     print("    Zmin: ",Zmin)
     print("    Zmax: ",Zmax)
     print("   Zmean: ",Zmean)
-    print("# frames: ",N_frames-1)
+    print("# frames: ",N_frames)
 
     outdata.close()
 
@@ -481,6 +505,7 @@ def wassgridsurface_main():
     parser.add_argument("--ss", "--subsample_percent", type=float, default=100, help="Point subsampling 0..100%%" )
     parser.add_argument("--mf", "--medianfilter", type=int, default=0, help="Median filter window size (0,3,5,7)" )
     parser.add_argument("-n", "--num_frames", type=int, default=-1, help="Number of frames to process. -1 to process all frames." )
+    parser.add_argument("-p", "--parallel", type=int, default=1, help="Number of parallel tasks to execute" )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
     parser.add_argument("--dct_nfreqs", type=int, default=None, help="DCT interpolator number of frequencies" )
@@ -593,7 +618,8 @@ def wassgridsurface_main():
                   "MAX_ITERS": args.dct_maxiters,
                   "TOLERANCE_CHANGE": args.dct_maxtol,
                   "LEARNING_RATE": args.dct_lr,
-                  })
+                  },
+              NUM_PARALLEL_PROCESSES=args.parallel )
 
         print("Gridding completed.")
 
