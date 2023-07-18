@@ -36,7 +36,6 @@ $ brew install opencv
 ```
 $ git clone https://github.com/fbergama/wass.git
 $ cd wass
-$ git checkout v_1.7
 $ git submodule update --init
 ```
 
@@ -90,7 +89,7 @@ To grid the reconstructed point clouds consider the new wassgridsurface tool:
 ## License
 
 ```
-Copyright (C) 2016-2022 Filippo Bergamasco 
+Copyright (C) 2016-2023 Filippo Bergamasco 
 
 WASS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
