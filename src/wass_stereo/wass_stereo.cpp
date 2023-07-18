@@ -1424,6 +1424,8 @@ static cv::Vec3b computeColor(float fx, float fy)
 }
 
 
+#if WASS_ENABLE_OPTFLOW
+
 static void drawOpticalFlow(const cv::Mat_<cv::Point2f>& flow, cv::Mat& dst, float maxmotion = -1)
 {
     dst.create(flow.size(), CV_8UC3);
@@ -1731,6 +1733,8 @@ bool refine_flow( StereoMatchEnv& env )
 }
 
 #endif
+
+#endif //Optical flow enabled
 
 
 int save_configuration( std::string filename )
