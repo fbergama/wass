@@ -33,8 +33,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "incfg.hpp"
 
 
-INCFG_REQUIRE( double, CLAHE_CLIPLIMIT, 2.0, "CLAHE cliplimit parameter" )
-INCFG_REQUIRE( int, CLAHE_TILEGRIDSIZE, 0, "CLAHE tile grid size (set to 0 to disable CLAHE). 150 is a good value to start" )
+INCFG_REQUIRE( double, CAM0_CLAHE_CLIPLIMIT, 2.0, "CAM0 CLAHE cliplimit parameter" )
+INCFG_REQUIRE( int, CAM0_CLAHE_TILEGRIDSIZE, 0, "CAM0 CLAHE tile grid size (set to 0 to disable CLAHE). 150 is a good value to start" )
+INCFG_REQUIRE( double, CAM1_CLAHE_CLIPLIMIT, 2.0, "CAM1 CLAHE cliplimit parameter" )
+INCFG_REQUIRE( int, CAM1_CLAHE_TILEGRIDSIZE, 0, "CAM1 CLAHE tile grid size (set to 0 to disable CLAHE). 150 is a good value to start" )
 
 
 namespace po = boost::program_options;
@@ -185,9 +187,9 @@ int main( int argc, char* argv[] )
 
     cv::Ptr< cv::CLAHE > clahe;
 
-    if( INCFG_GET( CLAHE_TILEGRIDSIZE ) > 0 )
+    if( INCFG_GET( CAM0_CLAHE_TILEGRIDSIZE ) > 0 )
     {
-        clahe = cv::createCLAHE( INCFG_GET( CLAHE_CLIPLIMIT ), cv::Size( INCFG_GET(CLAHE_TILEGRIDSIZE), INCFG_GET(CLAHE_TILEGRIDSIZE) ) );
+        clahe = cv::createCLAHE( INCFG_GET( CAM0_CLAHE_CLIPLIMIT ), cv::Size( INCFG_GET(CAM0_CLAHE_TILEGRIDSIZE), INCFG_GET(CAM0_CLAHE_TILEGRIDSIZE) ) );
     }
 
     cv::Mat img = cv::imread( vm["c0"].as<std::string>(), cv::IMREAD_GRAYSCALE );
@@ -203,6 +205,12 @@ int main( int argc, char* argv[] )
     cv::imwrite( (undist_dir/"00000000.png").string(), img_undist );
 
     std::cout << "[P|50|100]" << std::endl;
+
+    clahe.release();
+    if( INCFG_GET( CAM1_CLAHE_TILEGRIDSIZE ) > 0 )
+    {
+        clahe = cv::createCLAHE( INCFG_GET( CAM1_CLAHE_CLIPLIMIT ), cv::Size( INCFG_GET(CAM1_CLAHE_TILEGRIDSIZE), INCFG_GET(CAM1_CLAHE_TILEGRIDSIZE) ) );
+    }
 
     img = cv::imread( vm["c1"].as<std::string>(), cv::IMREAD_GRAYSCALE );
     if( clahe )
