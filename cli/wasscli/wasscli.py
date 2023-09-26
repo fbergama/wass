@@ -27,12 +27,13 @@ import tqdm
 from time import sleep
 from random import randint
 from tqdm.contrib.concurrent import thread_map
-from PyInquirer import prompt, Separator, Validator, ValidationError
-#from wassgridsurface import wassgridsurface_main
+from InquirerPy import prompt #, separator, validator, ValidationError
+from InquirerPy.separator import Separator
+from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 
 
 WASS_PIPELINE = {
