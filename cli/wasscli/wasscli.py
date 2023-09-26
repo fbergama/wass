@@ -33,7 +33,7 @@ from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.5"
+VERSION = "0.1.6"
 
 
 WASS_PIPELINE = {
@@ -174,18 +174,13 @@ def do_prepare():
     print(colorama.Fore.GREEN+("%d"%N)+colorama.Style.RESET_ALL+" stereo pairs found!")
 
 
-    class NumFramesValidator(Validator):
-        def validate(self, document):
-            if int(document.text)<3 or int(document.text)>N:
-                raise ValidationError(
-                    message='Please enter a valid number',
-                    cursor_position=len(document.text))  # Move cursor to end
     questions = [
         {
             'type': 'input',
             'name': 'framestoprepare',
             'message': 'How many stereo frames do you want to prepare? (3 ... %d)'%N,
-            'validate': NumFramesValidator
+            'validate': lambda selection: str.isnumeric(selection) and int(selection)>=3 and int(selection)<=N,
+            'default': str(N)
         }
     ]
     answers = prompt(questions)
@@ -213,24 +208,20 @@ def do_match():
 
     suggested_num_to_match = min( 50, len(workdirs))
 
-    class NumFramesValidator(Validator):
-        def validate(self, document):
-            if int(document.text)<0 or int(document.text)>len(workdirs):
-                raise ValidationError(
-                    message='Please enter a valid number',
-                    cursor_position=len(document.text))  # Move cursor to end
     questions = [
         {
             'type': 'input',
             'name': 'framestomatch',
             'message': 'How many frames do you want to use for matching? (1 ... %d, suggested: %d)'%(len(workdirs), suggested_num_to_match),
-            'validate': NumFramesValidator
+            'validate': lambda selection: str.isnumeric(selection) and int(selection)>=1 and int(selection)<=len(workdirs),
+            'default': str(suggested_num_to_match)
         }
     ]
     answers = prompt(questions)
 
     indices = np.random.permutation( len(workdirs) )[ :int(answers["framestomatch"])]
-    print("Matcher will use the following frames: ", indices)
+    print("Matcher will use the following frames: ")
+    print(indices)
 
     print("Running wass_match... please be patient")
 
