@@ -1743,7 +1743,7 @@ int save_configuration( std::string filename )
     std::ofstream ofs( filename );
     if( !ofs.is_open() )
     {
-        LOGE << "Unable to open " << filename << " stereo_config.txt for write";
+        LOGE << "Unable to open " << filename << " for write";
         return -1;
     }
     ofs << cfg;
