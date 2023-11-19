@@ -27,13 +27,15 @@ import tqdm
 from time import sleep
 from random import randint
 from tqdm.contrib.concurrent import thread_map
-from InquirerPy import prompt #, separator, validator, ValidationError
+from InquirerPy.inquirer import checkbox
+from InquirerPy.base.control import Choice
+from InquirerPy import prompt#, separator, validator, ValidationError
 from InquirerPy.separator import Separator
 from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.6"
+VERSION = "0.1.7"
 
 
 WASS_PIPELINE = {
@@ -90,6 +92,8 @@ def initialize_working_directory():
 
     if not os.path.exists("./config"):
         os.mkdir( "config")
+        ret = subprocess.run( [WASS_PIPELINE["wass_prepare"], "--genconfig"], capture_output=False, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL )
+        shutil.move("prepare_config.txt", "config/prepare_config.txt")
         ret = subprocess.run( [WASS_PIPELINE["wass_match"], "--genconfig"], capture_output=False, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL )
         shutil.move("matcher_config.txt", "config/matcher_config.txt")
         ret = subprocess.run( [WASS_PIPELINE["wass_stereo"], "--genconfig"], capture_output=False, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL )
@@ -181,19 +185,42 @@ def do_prepare():
             'message': 'How many stereo frames do you want to prepare? (3 ... %d)'%N,
             'validate': lambda selection: str.isnumeric(selection) and int(selection)>=3 and int(selection)<=N,
             'default': str(N)
+        },
+        {
+            'type': 'confirm',
+            'name': 'demosaic',
+            'message': 'Should I attempt to demosaic polarimetric images?',
+            'default': False
         }
     ]
+
     answers = prompt(questions)
+
+    polarimetric_images_options = []
+    if answers["demosaic"]:
+        polarimetric_images_options = checkbox(
+            message="What else should I do after demosaicing?",
+            choices=[Choice("--hdr", name="HDR", enabled=True),
+                     Choice("--save-channels", name="Save saparate images for each polarization channel", enabled=False),
+                     Choice("--dolp-aolp", name="Compute DOLP and AOLP", enabled=False)],
+            validate=lambda result: True,
+            invalid_message="",
+            instruction="Press space to select, enter to continue"
+        ).execute()
+
 
     print("Running wass_prepare... please be patient")
     for t in tqdm.trange(int(answers["framestoprepare"])):
         wdirname = "output/%06d_wd"%t
-        ret = subprocess.run( [WASS_PIPELINE["wass_prepare"],"--workdir", wdirname, "--calibdir", "config/", "--c0", cam0_files[t], "--c1", cam1_files[t]], capture_output=True )
+        ret = subprocess.run( [WASS_PIPELINE["wass_prepare"],"--workdir", wdirname, "--calibdir", "config/", "--c0", cam0_files[t], "--c1", cam1_files[t], 
+            "%s"%("--demosaic" if answers["demosaic"] else "")]+polarimetric_images_options, capture_output=True )
         if ret.returncode != 0:
             print( colorama.Fore.RED+("ERROR while running wass_prepare on frame %06d ****************"%t)+colorama.Style.RESET_ALL)
             print(ret.stdout.decode("ascii"))
             print( colorama.Fore.RED+("*********************************************************************")+colorama.Style.RESET_ALL)
             return False
+        else:
+            tqdm.tqdm.write(ret.stdout.decode("ascii"))
 
     print( colorama.Fore.GREEN+("Prepare completed!")+colorama.Style.RESET_ALL)
     return True
@@ -212,7 +239,7 @@ def do_match():
         {
             'type': 'input',
             'name': 'framestomatch',
-            'message': 'How many frames do you want to use for matching? (1 ... %d, suggested: %d)'%(len(workdirs), suggested_num_to_match),
+            'message': 'How many frames do you want to match? (1 ... %d, suggested: %d)'%(len(workdirs), suggested_num_to_match),
             'validate': lambda selection: str.isnumeric(selection) and int(selection)>=1 and int(selection)<=len(workdirs),
             'default': str(suggested_num_to_match)
         }
