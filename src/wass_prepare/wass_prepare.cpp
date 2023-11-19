@@ -86,7 +86,7 @@ void demosaic( const cv::Mat& I, cv::Mat out[4] )
 
 
 void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, cv::Ptr< cv::CLAHE > clahe, boost::filesystem::path outdir, std::string outfile,
-                    bool do_demosaic )
+                    bool do_demosaic, bool do_hdr, bool do_aolp_dolp, bool do_save_channels )
 {
     LOG_SCOPE("wass_prepare");
     cv::Mat img = cv::imread( filename, cv::IMREAD_GRAYSCALE );
@@ -126,7 +126,7 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         // Hdr reconstruction based on the polarization camera. IEEE Robotics and Automation Letters 5(4),
         // 5113–5119 (2020)
         //
-        float sig=0.35f;
+        float sig=0.3f;
         cv::Mat w0 = -1.0f*(I0-0.5f).mul(I0-0.5f)/(2.0f*sig*sig); 
         cv::exp(w0,w0);
         cv::Mat w45 = -1.0f*(I45-0.5f).mul(I45-0.5f)/(2.0f*sig*sig); 
@@ -137,42 +137,57 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         cv::exp(w135,w135);
 
 
-        cv::Mat HDR = (w0.mul(I0) + w45.mul(I45) + w90.mul(I90) + w135.mul(I135))/(w0+w45+w90+w135);
-        HDR.convertTo(img,CV_8UC1,255.0f);
-
-
         // Stokes
         cv::Mat S0 = (I0+I45+I90+I135)/4.0;
         cv::Mat S1 = I0 - I90;
         cv::Mat S2 = I45 - I135;
 
-        cv::Mat dolp = S1.mul(S1) + S2.mul(S2);
-        cv::sqrt(dolp,dolp);
-        dolp = dolp / S0;
 
-        cv::Mat dolp_color;
-        dolp.convertTo(aux,CV_8UC1,255.0);
-        cv::applyColorMap(aux, dolp_color, cv::COLORMAP_JET);
-        cv::imwrite( (outdir/"dolp.jpg").string(), dolp_color );
+        if( do_hdr )
+        {
+            LOGI << "Computing HDR intensity image";
+            cv::Mat HDR = (w0.mul(I0) + w45.mul(I45) + w90.mul(I90) + w135.mul(I135))/(w0+w45+w90+w135);
+            HDR.convertTo(img,CV_8UC1,255.0f);
+        }
+        else
+        {
+            S0.convertTo(img,CV_8UC1,255.0f);
+        }
 
-        cv::Mat aolp;
-        cv::cartToPolar( S2, S1, aux, aolp, false );
-        aolp = (aolp-3.1415) * 0.5;
+        if( do_aolp_dolp )
+        {
+            LOGI << "Computing DOLP and AOLP";
+            cv::Mat dolp = S1.mul(S1) + S2.mul(S2);
+            cv::sqrt(dolp,dolp);
+            dolp = dolp / S0;
 
-        cv::Mat aolp_color;
-        aolp.convertTo(aux, CV_8UC1, 255.0/3.1415, 127.0);
-        cv::applyColorMap(aux, aolp_color, cv::COLORMAP_JET);
-        cv::imwrite( (outdir/"aolp.jpg").string(), aolp_color );
+            cv::Mat dolp_color;
+            dolp.convertTo(aux,CV_8UC1,255.0);
+            cv::applyColorMap(aux, dolp_color, cv::COLORMAP_JET);
+            cv::imwrite( (outdir/"dolp.jpg").string(), dolp_color );
 
-        
-        I0.convertTo( aux, CV_8UC1, 255.0f );
-        cv::imwrite( (outdir/"I0.png").string(), aux );
-        I45.convertTo( aux, CV_8UC1, 255.0f );
-        cv::imwrite( (outdir/"I45.png").string(), aux );
-        I90.convertTo( aux, CV_8UC1, 255.0f );
-        cv::imwrite( (outdir/"I90.png").string(), aux );
-        I135.convertTo( aux, CV_8UC1, 255.0f );
-        cv::imwrite( (outdir/"I135.png").string(), aux );
+            cv::Mat aolp;
+            cv::cartToPolar( S2, S1, aux, aolp, false );
+            aolp = (aolp-3.1415) * 0.5;
+
+            cv::Mat aolp_color;
+            aolp.convertTo(aux, CV_8UC1, 255.0/3.1415, 127.0);
+            cv::applyColorMap(aux, aolp_color, cv::COLORMAP_JET);
+            cv::imwrite( (outdir/"aolp.jpg").string(), aolp_color );
+        }
+
+        if( do_save_channels )
+        {
+            LOGI << "Saving demosaiced channels";
+            I0.convertTo( aux, CV_8UC1, 255.0f );
+            cv::imwrite( (outdir/"I0.png").string(), aux );
+            I45.convertTo( aux, CV_8UC1, 255.0f );
+            cv::imwrite( (outdir/"I45.png").string(), aux );
+            I90.convertTo( aux, CV_8UC1, 255.0f );
+            cv::imwrite( (outdir/"I90.png").string(), aux );
+            I135.convertTo( aux, CV_8UC1, 255.0f );
+            cv::imwrite( (outdir/"I135.png").string(), aux );
+        }
 
     }
 
@@ -231,6 +246,9 @@ int main( int argc, char* argv[] )
         ("c0", po::value<std::string>(), "Cam0 image file")
         ("c1", po::value<std::string>(), "Cam1 image file")
         ("demosaic", po::bool_switch()->default_value(false), "Demosaic polarimetric images")
+        ("hdr", po::bool_switch()->default_value(false), "Use light polarization to compute HDR intensity image")
+        ("dolp-aolp", po::bool_switch()->default_value(false), "Compute DOLP and AOLP and save them as color-mapped images")
+        ("save-channels", po::bool_switch()->default_value(false), "Output I0,I45,I90,I135 as separate images")
         ("continue-if-existing", po::bool_switch()->default_value(false), "Don't complain if output dir already exists")
         ("genconfig", po::bool_switch()->default_value(false), "Generate configuration file")
     ;
@@ -391,7 +409,8 @@ int main( int argc, char* argv[] )
     cv::undistort( img, img_undist, intr0, dist0 );
     cv::imwrite( (undist_dir/"00000000.png").string(), img_undist );
 #endif
-    process_image( vm["c0"].as<std::string>(), intr0, dist0, clahe, undist_dir, "00000000.png", vm["demosaic"].as<bool>() );
+    process_image( vm["c0"].as<std::string>(), intr0, dist0, clahe, undist_dir, "00000000.png", 
+                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>() );
 
     std::cout << "[P|50|100]" << std::endl;
 
@@ -412,7 +431,8 @@ int main( int argc, char* argv[] )
     cv::undistort( img, img_undist, intr1, dist1 );
     cv::imwrite( (undist_dir/"00000001.png").string(), img_undist );
 #endif
-    process_image( vm["c1"].as<std::string>(), intr1, dist1, clahe, undist_dir, "00000001.png", vm["demosaic"].as<bool>() );
+    process_image( vm["c1"].as<std::string>(), intr1, dist1, clahe, undist_dir, "00000001.png", 
+                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>() );
 
     std::cout << "[P|70|100]" << std::endl;
 
