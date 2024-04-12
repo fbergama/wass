@@ -1020,6 +1020,7 @@ INCFG_REQUIRE( double, TRIANG_BBOX_RIGHT, -1.0, "Triangulation bounding box righ
 INCFG_REQUIRE( double, TRIANG_BBOX_BOTTOM, -1.0, "Triangulation bounding box bottom coordinate in px wrt. the left image (-1 to disable)")
 INCFG_REQUIRE( std::string, LEFT_MASK_IMAGE, "none", "Filename of a (BW) left camera mask image. Note: File path is relative to current workdir. Use \"none\" for no mask" )
 INCFG_REQUIRE( std::string, RIGHT_MASK_IMAGE, "none", "Filename of a (BW) right camera mask image. Note: File path is relative to current workdir. Use \"none\" for no mask" )
+INCFG_REQUIRE( bool, DISCARD_BURNED_AREAS, true, "Discard white pixels (value>254)" )
 
 size_t triangulate( StereoMatchEnv& env )
 {
@@ -1040,27 +1041,47 @@ size_t triangulate( StereoMatchEnv& env )
 
     // Triangulation mask image
     cv::Mat left_mask = env.left.clone()*0 + 1;
+
     if( INCFG_GET( LEFT_MASK_IMAGE ) != std::string("none") )
     {
-        std::string filename = (env.workdir/INCFG_GET(LEFT_MASK_IMAGE)).string();
-        LOGI << "Loading " << INCFG_GET(LEFT_MASK_IMAGE) << " as left camera mask";
+        const std::string filename = (env.workdir/INCFG_GET(LEFT_MASK_IMAGE)).string();
+        LOGI << "Loading " << filename << " as left camera mask";
         cv::Mat aux = cv::imread( filename, cv::IMREAD_GRAYSCALE );
         if( aux.cols == left_mask.cols && aux.rows == left_mask.rows )
-            left_mask = aux;
+            cv::threshold(aux, left_mask, 0.5, 1, cv::THRESH_BINARY  );
+        else
+            LOGE << "not found or invalid image.";
+    }
+    if( INCFG_GET( DISCARD_BURNED_AREAS ) ) 
+    {
+        cv::Mat aux;
+        cv::threshold(env.left, aux, 254.0, 1, cv::THRESH_BINARY  );
+        left_mask = left_mask.mul(1-aux);
     }
 
-    cv::Mat right_mask = env.left.clone()*0 + 1;
+
+    cv::Mat right_mask = env.right.clone()*0 + 1;
     if( INCFG_GET( RIGHT_MASK_IMAGE ) != std::string("none") )
     {
-        std::string filename = (env.workdir/INCFG_GET(RIGHT_MASK_IMAGE)).string();
-        LOGI << "Loading " << INCFG_GET(RIGHT_MASK_IMAGE) << " as right camera mask";
+        const std::string filename = (env.workdir/INCFG_GET(RIGHT_MASK_IMAGE)).string();
+        LOGI << "Loading " << filename << " as right camera mask";
         cv::Mat aux = cv::imread( filename, cv::IMREAD_GRAYSCALE );
         if( aux.cols == right_mask.cols && aux.rows == right_mask.rows )
-            right_mask = aux;
+            cv::threshold(aux, right_mask, 0.5, 1, cv::THRESH_BINARY  );
+        else
+            LOGE << "not found or invalid image.";
+    }
+    if( INCFG_GET( DISCARD_BURNED_AREAS ) ) 
+    {
+        cv::Mat aux;
+        cv::threshold(env.right, aux, 254.0, 1, cv::THRESH_BINARY  );
+        right_mask = right_mask.mul(1-aux);
     }
 
+#ifdef WASS_ENABLE_OPTFLOW
     env.pKDT_coarse_flow = new KDTreeImpl();
     env.coarse_flow_mask = cv::Mat::zeros( env.right.rows, env.right.cols, CV_32FC1 );
+#endif
 
     const int min_disp=1;
     size_t n_pts_triangulated = 0;
@@ -1141,6 +1162,7 @@ size_t triangulate( StereoMatchEnv& env )
         {
             if( env.disparity.at<float>(yr_i,xr) > min_disp )
             {
+                bool skip_triangulation = false;
                 float xl = (float)( xr - env.roi_comb_right.x + env.roi_comb_left.x - env.disparity.at<float>(yr_i,xr) + env.disparity_compensation/stereo_scale );
                 float yl = (float)yr_i;
 
@@ -1188,7 +1210,7 @@ size_t triangulate( StereoMatchEnv& env )
                 {
                     dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_IMAGE;
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_IMAGE;
-                    continue;
+                    skip_triangulation = true;
                 }
 
                 //std::cout << "pi: " << pi << std::endl << "qi: " << qi << std::endl;
@@ -1196,24 +1218,25 @@ size_t triangulate( StereoMatchEnv& env )
                 cv::Vec2d p( (pi[0]-env.intrinsics_left.at<double>(0,2)) / env.intrinsics_left.at<double>(0,0), (pi[1]-env.intrinsics_left.at<double>(1,2)) / env.intrinsics_left.at<double>(1,1) );
                 cv::Vec2d q( (qi[0]-env.intrinsics_right.at<double>(0,2)) / env.intrinsics_right.at<double>(0,0),(qi[1]-env.intrinsics_right.at<double>(1,2)) / env.intrinsics_right.at<double>(1,1));
 
+
                 if( pi[0] <= bbox_topleft[0]  || pi[1] <=bbox_topleft[1] ||
                     pi[0] >= bbox_botright[0] || pi[1] >=bbox_botright[1] )
                 {
                     dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
-                    continue;
+                    skip_triangulation = true;
                 }
 
                 if( left_mask.at< unsigned char >( pi[1], pi[0] ) == 0 )
                 {
                     dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
-                    continue;
+                    skip_triangulation = true;
                 }
 
                 if( right_mask.at< unsigned char >( qi[1], qi[0] ) == 0 )
                 {
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_OUTSIDE_BBOX;
-                    continue;
+                    skip_triangulation = true;
                 }
 
 
@@ -1227,9 +1250,13 @@ size_t triangulate( StereoMatchEnv& env )
                     {
                         dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_ANGLE_CHECK_FAIL;
                         dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_ANGLE_CHECK_FAIL;
-                        continue;
+                        skip_triangulation = true;
                     }
                 }
+
+
+                if( skip_triangulation )
+                    continue;
 
                 PointCloud<float>::Point newpoint;
                 newpoint.x = std::floor( qi[0]+0.5f );
@@ -1333,11 +1360,10 @@ size_t triangulate( StereoMatchEnv& env )
     LOGI << n_pts_triangulated << " valid points found";
 
 #if ENABLED(PLOT_3D_REPROJECTION)
-    cv::imwrite( (env.workdir/"/undistorted/00000000_P0.png").string(), dbg_P0 );
-    cv::imwrite( (env.workdir/"/undistorted/00000001_P1.png").string(), dbg_P1 );
-
-    cv::imwrite( (env.workdir/"/undistorted/R0.png").string(), dbg_R0 );
-    cv::imwrite( (env.workdir/"/undistorted/R1.png").string(), dbg_R1 );
+    //cv::imwrite( (env.workdir/"/undistorted/00000000_P0.jpg").string(), dbg_P0 );
+    //cv::imwrite( (env.workdir/"/undistorted/00000001_P1.jpg").string(), dbg_P1 );
+    cv::imwrite( (env.workdir/"/undistorted/R0.jpg").string(), dbg_R0 );
+    cv::imwrite( (env.workdir/"/undistorted/R1.jpg").string(), dbg_R1 );
 #endif
 
     return n_pts_triangulated;
