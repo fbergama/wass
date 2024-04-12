@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 
 import argparse
@@ -85,6 +85,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
     SCALEi = 1.0/baseline
     P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
+    P1plane = toNorm @ P1Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
 
     area_size_m_x = np.floor( area_size_x / 2)
     area_size_m_y = np.floor( area_size_y / 2)
@@ -154,6 +155,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
         "Rpl":Rpl,
         "Tpl":Tpl,
         "P0plane":P0plane,
+        "P1plane":P1plane,
         "CAM_BASELINE":baseline,
         "scale":baseline,
         "XX":XX,
@@ -169,8 +171,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1 ):
-    step=150
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0 ):
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
     YY = gridsetup["YY"]
@@ -187,12 +188,14 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     baseline = gridsetup["CAM_BASELINE"].item(0)
 
     fps = gridsetup["fps"].item(0)
+    stereo_image_index = image_id_to_save
 
     outdata.scale[:] = baseline
     outdata.add_meta_attribute("info", "Generated with WASS gridder v.%s"%VERSION )
     outdata.add_meta_attribute("generator", "WASS" )
     outdata.add_meta_attribute("baseline", baseline )
     outdata.add_meta_attribute("fps", fps)
+    outdata.add_meta_attribute("stereo_image_index", stereo_image_index)
     outdata.add_meta_attribute("timestring", gridsetup["timestring"] )
     outdata.set_grids( XX*1000.0, YY*1000.0 )
     outdata.set_kxky( gridsetup["KX_ab"], gridsetup["KY_ab"] )
@@ -201,7 +204,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
                              np.zeros( (3,3), dtype=np.float32),
                              np.zeros( (5,1), dtype=np.float32),
                              np.zeros( (5,1), dtype=np.float32),
-                             gridsetup["P0plane"])
+                             gridsetup["P0plane"],
+                             gridsetup["P1plane"])
 
 
     wass_frames_with_indices = [ x for x in enumerate(wass_frames) ]
@@ -418,12 +422,12 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         Zmaxs.append( np.nanmax(Zi) )
 
 
-        I0 = cv.imread( path.join(wdir,"00000000_s.png"))
+        I0 = cv.imread( path.join(wdir,"%08d_s.png"%image_id_to_save))
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
         ret, imgjpeg = cv.imencode(".jpg", I0 )
 
-        mask_filename = path.join( wdir, "undistorted", "mask0.png" ) 
+        mask_filename = path.join( wdir, "undistorted", "mask%d.png"%image_id_to_save ) 
         imagemask = None
         if path.exists( mask_filename ): 
             with open( mask_filename, "rb" ) as f:
@@ -508,6 +512,7 @@ def wassgridsurface_main():
     parser.add_argument("-p", "--parallel", type=int, default=1, help="Number of parallel tasks to execute" )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
+    parser.add_argument("--stereo_image_idx", type=int, default=0, help='Which stereo frame to store in the NetCDF, 0 or 1' )
     parser.add_argument("--dct_nfreqs", type=int, default=None, help="DCT interpolator number of frequencies" )
     parser.add_argument("--dct_regalpha", type=float, default=None, help="DCT interpolator regularizer alpha" )
     parser.add_argument("--dct_maxtol", type=float, default=None, help="DCT interpolator max function tolerance change" )
@@ -604,6 +609,11 @@ def wassgridsurface_main():
 
         if args.gridsetup is None:
             print("Grid setup file not specified. See --gridsetup option")
+            sys.exit(-1)
+
+        if args.stereo_image_idx > 1 or args.stereo_image_idx < 0:
+            print("--stereo_image_idx must be 0 or 1")
+            sys.exit(-1)
 
         grid( wass_frames,
               matfile=args.gridsetup,
@@ -619,12 +629,13 @@ def wassgridsurface_main():
                   "TOLERANCE_CHANGE": args.dct_maxtol,
                   "LEARNING_RATE": args.dct_lr,
                   },
-              NUM_PARALLEL_PROCESSES=args.parallel )
+              NUM_PARALLEL_PROCESSES=args.parallel,
+              image_id_to_save=args.stereo_image_idx)
 
         print("Gridding completed.")
 
     else:
-        print("Invalid actions specified.")
+        print("Invalid action specified.")
         sys.exit(-2)
 
 

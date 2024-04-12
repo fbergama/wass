@@ -113,7 +113,7 @@ class NetCDFOutput:
         self.maskZ[:] = maskZ
 
 
-    def set_instrinsics( self, K0, K1, kc0, kc1, P0plane ):
+    def set_instrinsics( self, K0, K1, kc0, kc1, P0plane, P1plane ):
         if self.rootgrp == None:
             return
 
@@ -126,6 +126,8 @@ class NetCDFOutput:
         K1v[:] = K1
         _P0plane = self.metagrp.createVariable("P0plane", "f8", ("V4","V4") )
         _P0plane[:] = P0plane
+        _P1plane = self.metagrp.createVariable("P1plane", "f8", ("V4","V4") )
+        _P1plane[:] = P1plane
         kc0v = self.metagrp.createVariable("dist0", "f8", ("DistV") )
         kc0v[:] = kc0
         kc1v = self.metagrp.createVariable("dist1", "f8", ("DistV") )
