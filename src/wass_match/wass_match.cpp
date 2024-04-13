@@ -314,7 +314,7 @@ int main( int argc, char* argv[] )
             }
         }
 
-        LOGI << all_matches_filtered.size() << " matches has passed the chierality check";
+        LOGI << all_matches_filtered.size() << " matches have passed the chirality check";
         debug_matches = render_matches( img0, img1, all_matches_filtered );
         cv::imwrite( (workdir/"matches_epifilter.png").string(), debug_matches );
 
