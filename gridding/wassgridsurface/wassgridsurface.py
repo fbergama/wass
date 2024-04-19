@@ -17,8 +17,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.7.0"
+VERSION = "0.7.1"
 
+import matplotlib
+matplotlib.use('AGG')
+import matplotlib.pyplot as plt
 
 import argparse
 import configparser
@@ -29,7 +32,6 @@ import sys
 import glob
 import time
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2 as cv
 from os import path
 from tqdm import tqdm
