@@ -13,61 +13,8 @@ It was developed by [Filippo Bergamasco](http://www.dsi.unive.it/~bergamasco/) a
 
 ## Installation instructions 
 
-Since WASS 1.6 there is no need to compile OpenCV from scratch. Just install the
-latest version with your favourite package manager.
+Please follow the [Quick-start guide](https://www.dais.unive.it/wass/WASS_quickstart_guide.pdf)
 
-On Linux Ubuntu-like:
-
-```
-$ sudo apt install libopencv-dev
-``` 
-
-On OSX:
-
-```
-$ brew install opencv
-```
-
-### Steps:
-
-
-1. Download WASS and checkout the latest WASS branch:
-
-```
-$ git clone https://github.com/fbergama/wass.git
-$ cd wass
-$ git submodule update --init
-```
-
-2. Prepare for build
-
-```
-$ mkdir build
-$ cd build
-```
-
-3. Build and install
-
-```
-$ cmake ../src
-$ make install
-```
-
-4. Suggested: add the `../dist/bin` directory to your path!
-
-
-5. Test if it works
-
-```
-wass_stereo  v. 1.7_heads/v_1.7-0-g4177b1f
-----------------------------------------------
- [Release] Linux-5.15.0-46-generic - GNU, OpenCV 4.5.4
-
-Usage:
-wass_stereo [--genconfig] <config_file> <workdir> [--measure] [--rectify-only]
-
-Not enough arguments, aborting.
-```
 
 
 ## How to run it
@@ -89,7 +36,7 @@ To grid the reconstructed point clouds consider the new wassgridsurface tool:
 ## License
 
 ```
-Copyright (C) 2016-2023 Filippo Bergamasco 
+Copyright (C) 2016-2024 Filippo Bergamasco 
 
 WASS is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
