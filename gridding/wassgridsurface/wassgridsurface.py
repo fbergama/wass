@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.7.1"
+VERSION = "0.8.0"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -89,6 +89,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
     P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
     P1plane = toNorm @ P1Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
 
+
     area_size_m_x = np.floor( area_size_x / 2)
     area_size_m_y = np.floor( area_size_y / 2)
     xmin = area_center[0]-area_size_m_x
@@ -105,6 +106,33 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
         zmax=-zmin
 
     print("zmin .. zmax = %3.2f ... %3.2f"%(zmin,zmax) )
+
+    # Plane-image homographies
+    gridbounds = np.array( [[xmin,ymin,0,1],[xmax,ymin,0,1],[xmax,ymax,0,1],[xmin,ymax,0,1]], dtype=float ).T
+    gridbounds_cam0 = np.linalg.inv(toNorm) @ P0plane @ gridbounds
+    gridbounds_cam0 /= gridbounds_cam0[2,:]
+
+    gridbounds_cam1 = np.linalg.inv(toNorm) @ P1plane @ gridbounds
+    gridbounds_cam1 /= gridbounds_cam1[2,:]
+
+    lineto = lambda I,ii,jj : cv.line( I, (int(gridbounds_cam0[0,ii]),int(gridbounds_cam0[1,ii])), (int(gridbounds_cam0[0,jj]),int(gridbounds_cam0[1,jj])), (0,0,255), 4 )
+
+    I = cv.imread(  path.join(wdir,"undistorted","00000000.png"), cv.IMREAD_GRAYSCALE )
+    I = cv.cvtColor(I, cv.COLOR_GRAY2BGR)
+
+    gridbounds_texture = np.array( [[0,0],[Nx,0],[Nx,Ny],[0,Ny]], dtype=np.float32 ).T
+    Hcam0_to_grid, _ = cv.findHomography( gridbounds_cam0[:2,:].astype(np.float32).T, gridbounds[:2,:].astype(np.float32).T )
+    Hcam1_to_grid, _ = cv.findHomography( gridbounds_cam1[:2,:].astype(np.float32).T, gridbounds[:2,:].astype(np.float32).T )
+    Hcam0_to_texture, _ = cv.findHomography( gridbounds_cam0[:2,:].astype(np.float32).T, gridbounds_texture.T )
+
+    I0rect = cv.warpPerspective( I, Hcam0_to_texture, (Nx,Ny) )
+    cv.imwrite( path.join(outdir,"cam0_rectified.jpg"), I0rect )
+
+    lineto(I,0,1)
+    lineto(I,1,2)
+    lineto(I,2,3)
+    lineto(I,3,0)
+    cv.imwrite( path.join(outdir,"grid_projected_cam0.jpg"),I )
 
     # Meshgrid
     XX,YY = np.meshgrid( np.linspace(xmin,xmax,Nx), np.linspace(ymin,ymax,Ny) )
@@ -149,6 +177,9 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
         "zmax":zmax,
         "P0cam":P0Cam[0:3,:],
         "P1cam":P1Cam[0:3,:],
+        "Hcam0toGrid":Hcam0_to_grid,
+        "Hcam1toGrid":Hcam1_to_grid,
+        "Hcam0toTexture":Hcam0_to_texture,
         "Nx":Nx,
         "Ny":Ny,
         "N":np.amax([Nx,Ny]),
@@ -423,11 +454,13 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         Zmins.append( np.nanmin(Zi) )
         Zmaxs.append( np.nanmax(Zi) )
 
+        #img_to_load = path.join(wdir,"undistorted","%08d.png"%image_id_to_save ) 
+        img_to_load = path.join(wdir,"%08d_s.png"%image_id_to_save)
+        I0 = cv.imread(img_to_load)
 
-        I0 = cv.imread( path.join(wdir,"%08d_s.png"%image_id_to_save))
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
-        ret, imgjpeg = cv.imencode(".jpg", I0 )
+        _, imgjpeg = cv.imencode(".jpg", I0 )
 
         mask_filename = path.join( wdir, "undistorted", "mask%d.png"%image_id_to_save ) 
         imagemask = None
