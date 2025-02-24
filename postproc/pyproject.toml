@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wasspost"
+description = "WASS post processing tool"
+readme = "README.md"
+requires-python = ">=3.9"
+keywords = ["WASS", "3D", "Post processing"]
+license = {text = "GPL3"}
+authors = [
+  {email = "filippo.bergamasco@unive.it"},
+  {name = "Filippo Bergamasco"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta"
+]
+dependencies = [
+    "matplotlib","colorama","scipy","numpy","tqdm",
+    "opencv-python>=2.4.6", "netcdf4"
+]
+dynamic = ["version"]
+
+[tool.poetry]
+package-mode = false
+
+[project.urls]
+homepage = "https://sites.google.com/unive.it/wass"
+#documentation = "https://readthedocs.org"
+repository = "https://github.com/fbergama/wass/tree/master/postproc"
+#changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
+
+[project.scripts]
+wassgridsurface = "wasspost:wasspost_main"
+
+[tool.setuptools.dynamic]
+version = {attr = "wasspost.wasspost.VERSION"}
+
+# ... other project metadata fields as specified in:
+#     https://packaging.python.org/en/latest/specifications/declaring-project-metadata/
