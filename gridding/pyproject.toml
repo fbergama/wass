@@ -23,6 +23,9 @@ dependencies = [
 ]
 dynamic = ["version"]
 
+[tool.poetry]
+package-mode = false
+
 [project.urls]
 homepage = "https://sites.google.com/unive.it/wass"
 #documentation = "https://readthedocs.org"

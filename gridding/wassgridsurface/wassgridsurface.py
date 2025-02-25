@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.8.0"
+VERSION = "0.9.1"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -53,8 +53,13 @@ from wassgridsurface.DCTInterpolator import DCTInterpolator
 
 
 def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_size_y, Nx, Ny, Iw=None, Ih=None, fps=0, timestring="" ):
-    meshname = path.join(wdir,"mesh_cam.xyzC")
-    print("Loading ", meshname )
+
+    s = cv.FileStorage()
+
+    s.open(path.join(wdir,"intrinsics_00000000.xml"), cv.FileStorage_READ)
+    K0 = s.getNode('intr').mat() 
+    s.open(path.join(wdir,"intrinsics_00000001.xml"), cv.FileStorage_READ)
+    K1 = s.getNode('intr').mat() 
 
     R = np.loadtxt(path.join(wdir,'Cam0_poseR.txt'))
     T = np.loadtxt(path.join(wdir,'Cam0_poseT.txt'))
@@ -73,6 +78,9 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
     print("Camera image size: "+Fore.RED+("%dx%d"%(Iw,Ih))+Fore.RESET+" (override with -Iw -Ih program arguments)")
 
     Rpl, Tpl = compute_sea_plane_RT( meanplane )
+
+    meshname = path.join(wdir,"mesh_cam.xyzC")
+    print("Loading ", meshname )
     mesh = load_camera_mesh(meshname)
     mesh_aligned = align_on_sea_plane( mesh, meanplane) * baseline
 
@@ -185,6 +193,9 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
         "N":np.amax([Nx,Ny]),
         "R":R,
         "T":T,
+        "RTplane":RTplane,
+        "K0":K0,
+        "K1":K1,
         "Rpl":Rpl,
         "Tpl":Tpl,
         "P0plane":P0plane,
@@ -205,6 +216,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0 ):
+
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
     YY = gridsetup["YY"]
@@ -214,8 +226,6 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     Rp2c = Rpl.T
     Tp2c = -Rp2c@Tpl
 
-    P0cam = gridsetup["P0cam"]
-    P1cam = gridsetup["P1cam"]
 
     outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ), M=XX.shape[0], N=XX.shape[1] )
     baseline = gridsetup["CAM_BASELINE"].item(0)
@@ -233,12 +243,15 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     outdata.set_grids( XX*1000.0, YY*1000.0 )
     outdata.set_kxky( gridsetup["KX_ab"], gridsetup["KY_ab"] )
 
-    outdata.set_instrinsics( np.zeros( (3,3), dtype=np.float32),
-                             np.zeros( (3,3), dtype=np.float32),
+
+    outdata.set_instrinsics( gridsetup["K0"],
+                             gridsetup["K1"],
                              np.zeros( (5,1), dtype=np.float32),
                              np.zeros( (5,1), dtype=np.float32),
                              gridsetup["P0plane"],
-                             gridsetup["P1plane"])
+                             gridsetup["P1plane"],
+                             gridsetup["P0cam"],
+                             gridsetup["P1cam"])
 
 
     wass_frames_with_indices = [ x for x in enumerate(wass_frames) ]
@@ -533,7 +546,7 @@ def wassgridsurface_main():
     parser = argparse.ArgumentParser( epilog=howtostring, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument("workdir", help="WASS output directory containing the reconstructed frames")
     parser.add_argument("outdir", help="Output directory")
-    parser.add_argument("--action", type=str, help="What to do [setup | grid | generategridconfig ]" )
+    parser.add_argument("--action", choices=("setup","grid","generateconfig"), type=str, help="What to do [setup | grid | generategridconfig ]" )
     parser.add_argument("--gridconfig", type=str, help="Grid configuration file for setup action")
     parser.add_argument("--gridsetup", type=str, help="Grid setup file for grid action")
     parser.add_argument("-b", "--baseline", default=1.0, type=float, help="Stereo camera distance" )

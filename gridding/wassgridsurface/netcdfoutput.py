@@ -113,7 +113,7 @@ class NetCDFOutput:
         self.maskZ[:] = maskZ
 
 
-    def set_instrinsics( self, K0, K1, kc0, kc1, P0plane, P1plane ):
+    def set_instrinsics( self, K0, K1, kc0, kc1, P0plane, P1plane, P0cam, P1cam ):
         if self.rootgrp == None:
             return
 
@@ -122,14 +122,29 @@ class NetCDFOutput:
         self.metagrp.createDimension( "DistV", 5 )
         K0v = self.metagrp.createVariable("intr0", "f8", ("V3","V3") )
         K0v[:] = K0
+
         K1v = self.metagrp.createVariable("intr1", "f8", ("V3","V3") )
         K1v[:] = K1
-        _P0plane = self.metagrp.createVariable("P0plane", "f8", ("V4","V4") )
-        _P0plane[:] = P0plane
-        _P1plane = self.metagrp.createVariable("P1plane", "f8", ("V4","V4") )
-        _P1plane[:] = P1plane
+
+        if not P0plane is None:
+            _P0plane = self.metagrp.createVariable("P0plane", "f8", ("V4","V4") )
+            _P0plane[:] = P0plane
+
+        if not P1plane is None:
+            _P1plane = self.metagrp.createVariable("P1plane", "f8", ("V4","V4") )
+            _P1plane[:] = P1plane
+
+        if not P0cam is None:
+            _P0cam = self.metagrp.createVariable("P0cam", "f8", ("V3","V4") )
+            _P0cam[:] = P0cam
+
+        if not P1cam is None:
+            _P1cam = self.metagrp.createVariable("P1cam", "f8", ("V3","V4") )
+            _P1cam[:] = P1cam
+
         kc0v = self.metagrp.createVariable("dist0", "f8", ("DistV") )
         kc0v[:] = kc0
+
         kc1v = self.metagrp.createVariable("dist1", "f8", ("DistV") )
         kc1v[:] = kc1
 
