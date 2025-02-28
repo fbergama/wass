@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -527,7 +527,7 @@ def wassgridsurface_main():
             mkdir gridding
 
         2) Generate grid config file:
-            wassgridsurface --action generategridconfig . gridding
+            wassgridsurface --action generateconfig ./output ./gridding
 
         3) Edit the grid config file ./gridding/gridconfig.txt with your favourite editor
 
@@ -546,7 +546,7 @@ def wassgridsurface_main():
     parser = argparse.ArgumentParser( epilog=howtostring, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument("workdir", help="WASS output directory containing the reconstructed frames")
     parser.add_argument("outdir", help="Output directory")
-    parser.add_argument("--action", choices=("setup","grid","generateconfig"), type=str, help="What to do [setup | grid | generategridconfig ]" )
+    parser.add_argument("--action", choices=("setup","grid","generateconfig"), type=str, help="What to do [setup | grid | generateconfig ]" )
     parser.add_argument("--gridconfig", type=str, help="Grid configuration file for setup action")
     parser.add_argument("--gridsetup", type=str, help="Grid setup file for grid action")
     parser.add_argument("-b", "--baseline", default=1.0, type=float, help="Stereo camera distance" )
@@ -568,7 +568,7 @@ def wassgridsurface_main():
     parser.add_argument("--dct_maxiters", type=int, default=None, help="DCT interpolator max number of iterations" )
     args = parser.parse_args()
 
-    if args.action == "generategridconfig":
+    if args.action == "generateconfig":
         gridconfigfile = path.join(args.outdir,"gridconfig.txt")
         print("Generating ",gridconfigfile)
         with open(gridconfigfile, "w" ) as f:
