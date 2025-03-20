@@ -42,6 +42,7 @@ INCFG_REQUIRE( double, MATCHER_POPULATION_THRESHOLD, 0.7, "Matcher population th
 INCFG_REQUIRE( int, MATCHER_MIN_GROUP_SIZE, 5, "Matcher minimum required group size" )
 INCFG_REQUIRE( int, MATCHER_MAX_ROUNDS, 20, "Matcher maximum number of rounds to perform" )
 INCFG_REQUIRE( double, MATCHER_MAX_EPI_DISTANCE, 0.5, "Max matches epipolar distance" )
+INCFG_REQUIRE( bool, MATCHER_SKIP_GT, false, "Skip game-theoretic matcher and use the nearest match only." )
 
 
 bool save_matches( boost::filesystem::path filename, const WASS::match::MatchList& matches )
@@ -185,7 +186,7 @@ int main( int argc, char* argv[] )
         f0.detect( img0, INCFG_GET(NUM_FEATURES_PER_IMAGE), WASS::match::SURF_Extractor_params::get_default() );
         cv::Mat img0_f = img0.clone();
         f0.renderToImage( img0_f );
-        cv::imwrite( (workdir/"00000000_features.png").string(), img0_f );
+        cv::imwrite( (workdir/"00000000_features.jpg").string(), img0_f );
         img0_f = cv::Mat();
 
 
@@ -202,40 +203,50 @@ int main( int argc, char* argv[] )
         f1.detect( img1, INCFG_GET(NUM_FEATURES_PER_IMAGE), WASS::match::SURF_Extractor_params::get_default() );
         cv::Mat img1_f = img1.clone();
         f1.renderToImage( img1_f );
-        cv::imwrite( (workdir/"00000001_features.png").string(), img1_f );
+        cv::imwrite( (workdir/"00000001_features.jpg").string(), img1_f );
         img1_f = cv::Mat();
+
 
 
         // Matching
         WASS::match::GTMatcher matcher( f0, f1 );
-        LOGI << "generating candidate matches";
-        matcher.generate_candidates();
-
         WASS::match::MatchList all_matches;
 
-        bool continue_matching = true;
-        int max_rounds = INCFG_GET(MATCHER_MAX_ROUNDS);
-        do
+        LOGI << "generating candidate matches";
+        all_matches = matcher.generate_candidates();
+
+        if( !INCFG_GET( MATCHER_SKIP_GT ) )
         {
-            matcher.compute_payoff_matrix( INCFG_GET(MATCHER_LAMBDA) );
-            WASS::match::MatchList curr_group = matcher.match_group( INCFG_GET(MATCHER_POPULATION_THRESHOLD) );
-            all_matches.insert( all_matches.end(), curr_group.begin(), curr_group.end() );
+            bool continue_matching = true;
+            int max_rounds = INCFG_GET(MATCHER_MAX_ROUNDS);
+            all_matches.clear();
+            do
+            {
+                matcher.compute_payoff_matrix( INCFG_GET(MATCHER_LAMBDA) );
+                WASS::match::MatchList curr_group = matcher.match_group( INCFG_GET(MATCHER_POPULATION_THRESHOLD) );
+                all_matches.insert( all_matches.end(), curr_group.begin(), curr_group.end() );
 
-            if( curr_group.size() < INCFG_GET(MATCHER_MIN_GROUP_SIZE) )
-                continue_matching = false;
+                if( curr_group.size() < INCFG_GET(MATCHER_MIN_GROUP_SIZE) )
+                    continue_matching = false;
 
-            std::cout << "[P|" << static_cast<int>(static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)-max_rounds)/static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)) * 70.0f + 20.0f) << "|100]" << std::endl;
+                std::cout << "[P|" << static_cast<int>(static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)-max_rounds)/static_cast<float>(INCFG_GET(MATCHER_MAX_ROUNDS)) * 70.0f + 20.0f) << "|100]" << std::endl;
 
-        } while( max_rounds-- && continue_matching );
+            } while( max_rounds-- && continue_matching );
+        } 
+        else 
+        {
+            LOGI << "skipping GT matcher";
+        }
 
         cv::Mat debug_matches = render_matches( img0, img1, all_matches );
-        cv::imwrite( (workdir/"matches.png").string(), debug_matches );
+        cv::imwrite( (workdir/"matches.jpg").string(), debug_matches );
 
         LOGI << "Saving matches";
         if( !save_matches(workdir/"matches_unfiltered.txt", all_matches) )
             return -1;
 
         LOGI << all_matches.size() << " total matches recovered";
+
         LOGI << "epipolar filter...";
 
         cv::Mat K0 = WASS::load_matrix( workdir / "intrinsics_00000000.xml" );
@@ -316,7 +327,7 @@ int main( int argc, char* argv[] )
 
         LOGI << all_matches_filtered.size() << " matches have passed the chirality check";
         debug_matches = render_matches( img0, img1, all_matches_filtered );
-        cv::imwrite( (workdir/"matches_epifilter.png").string(), debug_matches );
+        cv::imwrite( (workdir/"matches_epifilter.jpg").string(), debug_matches );
 
 
         cv::Matx33d Ex((double*)(E.clone().ptr()));

@@ -86,7 +86,7 @@ public:
     virtual void renderToImage( cv::Mat img ) const;
 
 
-    std::vector< int > knn( const Feature& fs, const int K ); // Returns the k nearest features with respect to descriptor
+    std::pair< std::vector< int >, std::vector<float> > knn( const Feature& fs, const int K ); // Returns the k nearest features with respect to descriptor
 
     int nearest( const Feature& fs ) const; // Returns the nearest feature with respect to image position
     int nearest( const int fs_idx ) const;  // the same as above, but uses the feature index as input parameter

@@ -44,6 +44,7 @@ INCFG_REQUIRE( float, FEATURE_HESSIAN_THRESHOLD, 0.0001f, "OpenSURF Hessian thre
 INCFG_REQUIRE( int, FEATURE_N_OCTAVES, 4, "OpenSURF number of octaves" )
 INCFG_REQUIRE( int, FEATURE_N_LAYERS, 4, "OpenSURF number of layers" )
 INCFG_REQUIRE( int, FEATURE_INIT_SAMPLES, 1, "OpenSURF init samples" )
+INCFG_REQUIRE( int, AREA_SUBDIVISION, 5, "Number of image subdivisons to improve feature distribution" )
 
 
 /****************************************
@@ -221,7 +222,7 @@ void FeatureSet::detect( cv::Mat img, size_t max_features, SURF_Extractor_params
         std::vector< ImageArea >& areas = pImpl->areas;
 
         // Trim features by area
-        create_areas( surf_input.cols, surf_input.rows, 4, std::max<int>( (int)(surf_input.cols/30.0), 2 ), ipts, areas );
+        create_areas( surf_input.cols, surf_input.rows, INCFG_GET(AREA_SUBDIVISION), std::max<int>( (int)(surf_input.cols/30.0), 2 ), ipts, areas );
 
         int points_per_area = static_cast<int>( max_features / areas.size() );
         int num_extra_pts_available = 0;
@@ -448,10 +449,10 @@ void FeatureSet::clear_kdtree()
 
 
 
-std::vector< int > FeatureSet::knn( const Feature& fs, const int K )
+std::pair< std::vector<int>, std::vector<float> > FeatureSet::knn( const Feature& fs, const int K )
 {
     if( size()==0 )
-        return std::vector<int>();
+        return std::pair< std::vector<int>, std::vector<float> >( std::vector<int>(), std::vector<float>() );
 
 
     if( !pImpl->kdtree )
@@ -463,7 +464,7 @@ std::vector< int > FeatureSet::knn( const Feature& fs, const int K )
 
     pImpl->kdtree->knnSearch(singleQuery, indices, distances, K, cv::flann::SearchParams(64));
 
-    return indices;
+    return std::pair< std::vector<int>, std::vector<float> >( indices, distances );
 }
 
 

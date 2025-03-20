@@ -21,12 +21,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include "GTMatcher.h"
+#include "incfg.hpp"
 #include "hires_timer.h"
 #include "log.hpp"
 #include "gt.h"
 #include <boost/cstdint.hpp>
 #include <boost/scoped_array.hpp>
 #include <fstream>
+
+
+INCFG_REQUIRE( float, NNDR, 0.25f, "Nearest neighbour distance ratio used to select best matches. Note: ignored if MATCHER_SKIP_GT=false" )
 
 
 #undef max
@@ -182,18 +186,29 @@ MatchList GTMatcher::generate_candidates( )
     for( size_t i=0; i<pImpl->fa.size(); ++i )
     {
         const WASS::match::Feature& fs = pImpl->fa[i];
-        std::vector<int> nn = pImpl->fb.knn( fs,n_candidates_per_feature );
+        auto neighbours = pImpl->fb.knn( fs,n_candidates_per_feature );
+
+        const std::vector< int >& nn = neighbours.first;
+        const std::vector< float >& distances = neighbours.second;
+
+        // Distance ratio euristic
+        // skip this match if the second neighbour distance
+        // is too close to the best neighbour
+        if( n_candidates_per_feature>1 && (distances[0] < INCFG_GET(NNDR) * distances[1]) )
+        {
+            Match p;
+            p.first = (size_t)i;
+            p.second = (size_t)nn[0];
+            p.imga_loc = pImpl->fa[p.first].position;
+            p.imgb_loc = pImpl->fb[p.second].position;
+            ml.push_back( p );
+        }
+
+
         for( size_t j=0; j<nn.size(); ++j )
         {
             pImpl->cmatches.push_back( association( (int)i,
                                                      nn[j]) );
-
-            Match p;
-            p.first = (size_t)i;
-            p.second = (size_t)nn[j];
-            p.imga_loc = pImpl->fa[p.first].position;
-            p.imgb_loc = pImpl->fb[p.second].position;
-            ml.push_back( p );
         }
     }
 
