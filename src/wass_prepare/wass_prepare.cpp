@@ -86,7 +86,7 @@ void demosaic( const cv::Mat& I, cv::Mat out[4] )
 
 
 void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, cv::Ptr< cv::CLAHE > clahe, boost::filesystem::path outdir, std::string outfile,
-                    bool do_demosaic, bool do_hdr, bool do_aolp_dolp, bool do_save_channels )
+                    bool do_demosaic, bool do_hdr, bool do_aolp_dolp, bool do_save_channels, bool do_save_stokes )
 {
     LOG_SCOPE("wass_prepare");
     cv::Mat img = cv::imread( filename, cv::IMREAD_GRAYSCALE );
@@ -103,55 +103,115 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
     if( do_demosaic )
     {
         LOGI << "Demosaicing...";
-        cv::Mat ch[] = {cv::Mat(),cv::Mat(),cv::Mat(),cv::Mat() };
-        cv::Mat& I0=ch[0];
-        cv::Mat& I45=ch[1];
-        cv::Mat& I90=ch[2];
-        cv::Mat& I135=ch[3];
+        double mmin, mmax;
         cv::Mat aux;
+        cv::Mat aux2;
+        cv::Mat ch[] = {cv::Mat(),cv::Mat(),cv::Mat(),cv::Mat() };
+        cv::Mat& I0o=ch[0];
+        cv::Mat& I45o=ch[1];
+        cv::Mat& I90o=ch[2];
+        cv::Mat& I135o=ch[3];
         demosaic( img, ch );
 
-        // Upscale using BiCubic interpolation
-        for( int i=0; i<4; ++i )
-        {
-            cv::Mat aux2;
-            cv::resize( ch[i], aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
-            cv::undistort( aux, aux2, K, dist );
-            aux2.convertTo(ch[i],CV_32F,1.0f/255.0f);
-        }
+        // Convert to 32bit floating point for computation
+        cv::Mat I0 = I0o;
+        I0.convertTo( I0o, CV_32FC1, 1.0f/255.0f );
+        cv::Mat I45 = I45o;
+        I45.convertTo( I45o, CV_32FC1, 1.0f/255.0f  );
+        cv::Mat I90 = I90o;
+        I90.convertTo( I90o, CV_32FC1, 1.0f/255.0f  );
+        cv::Mat I135 = I135o;
+        I135.convertTo( I135o, CV_32FC1, 1.0f/255.0f  );
 
 
-        // HDR, ref: 
-        // Wu, X., Zhang, H., Hu, X., Shakeri, M., Fan, C., Ting, J.
-        // Hdr reconstruction based on the polarization camera. IEEE Robotics and Automation Letters 5(4),
-        // 5113–5119 (2020)
+        // Upscale using BiCubic interpolation and undistort
+        cv::resize( I0o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::undistort( aux, I0o, K, dist );
+
+        cv::resize( I45o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::undistort( aux, I45o, K, dist );
+
+        cv::resize( I90o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::undistort( aux, I90o, K, dist );
+
+        cv::resize( I135o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::undistort( aux, I135o, K, dist );
+
+
+        // Enforce I0 + I90 = I45 + I135
+        // 
+        // See:
+        // Fatima, T., Pistellato, M., Torsello, A., & Bergamasco, F. (2022). 
+        // One-shot hdr imaging via stereo pfa cameras. 
+        // In International Conference on Image Analysis and Processing (pp. 467-478). 
+        // Springer International Publishing.
         //
-        float sig=0.3f;
-        cv::Mat w0 = -1.0f*(I0-0.5f).mul(I0-0.5f)/(2.0f*sig*sig); 
-        cv::exp(w0,w0);
-        cv::Mat w45 = -1.0f*(I45-0.5f).mul(I45-0.5f)/(2.0f*sig*sig); 
-        cv::exp(w45,w45);
-        cv::Mat w90 = -1.0f*(I90-0.5f).mul(I90-0.5f)/(2.0f*sig*sig); 
-        cv::exp(w90,w90);
-        cv::Mat w135 = -1.0f*(I135-0.5f).mul(I135-0.5f)/(2.0f*sig*sig); 
-        cv::exp(w135,w135);
+
+        const float k1 = 0.75f;
+        const float k2 = 0.25f;
+        I0   = ( k1 * I0o + k2 * I45o - k2 * I90o + k2 * I135o);
+        I45  = ( k2 * I0o + k1 * I45o + k2 * I90o - k2 * I135o);
+        I90  = (-k2 * I0o + k2 * I45o + k1 * I90o + k2 * I135o);
+        I135 = ( k2 * I0o - k2 * I45o + k2 * I90o + k1 * I135o);
+        #if 0
+        // check
+        aux = I0 + I90 - I45 - I135;
+        cv::minMaxLoc( aux, &mmin, &mmax );
+        LOGI << mmin << "  " << mmax;
+        #endif
 
 
-        // Stokes
-        cv::Mat S0 = (I0+I45+I90+I135)/4.0;
+        // Compute Stokes vector and save it
+        LOGI << "Computing Stokes' vector components";
+
+        cv::Mat S0 = (I0+I45+I90+I135)/4.0f;
+        cv::minMaxLoc( S0, &mmin, &mmax );
+        LOGI << "S0 range: " << mmin << " ... " << mmax;
+
         cv::Mat S1 = I0 - I90;
+        cv::minMaxLoc( S1, &mmin, &mmax );
+        LOGI << "S1 range: " << mmin << " ... " << mmax;
+
         cv::Mat S2 = I45 - I135;
+        cv::minMaxLoc( S2, &mmin, &mmax );
+        LOGI << "S2 range: " << mmin << " ... " << mmax;
+
+
+        if( do_save_stokes )
+        {
+            LOGI << "Saving Stokes vector";
+            cv::imwrite( (outdir/(outfile+"_S0.tiff")).string(), S0 );
+            cv::imwrite( (outdir/(outfile+"_S1.tiff")).string(), S1 );
+            cv::imwrite( (outdir/(outfile+"_S2.tiff")).string(), S2 );
+        }
 
 
         if( do_hdr )
         {
             LOGI << "Computing HDR intensity image";
+            // HDR, ref: 
+            // Wu, X., Zhang, H., Hu, X., Shakeri, M., Fan, C., Ting, J.
+            // Hdr reconstruction based on the polarization camera. IEEE Robotics and Automation Letters 5(4),
+            // 5113–5119 (2020)
+            //
+            float sig=0.3f;
+            cv::Mat w0 = -1.0f*(I0-0.5f).mul(I0-0.5f)/(2.0f*sig*sig); 
+            cv::exp(w0,w0);
+            cv::Mat w45 = -1.0f*(I45-0.5f).mul(I45-0.5f)/(2.0f*sig*sig); 
+            cv::exp(w45,w45);
+            cv::Mat w90 = -1.0f*(I90-0.5f).mul(I90-0.5f)/(2.0f*sig*sig); 
+            cv::exp(w90,w90);
+            cv::Mat w135 = -1.0f*(I135-0.5f).mul(I135-0.5f)/(2.0f*sig*sig); 
+            cv::exp(w135,w135);
+
             cv::Mat HDR = (w0.mul(I0) + w45.mul(I45) + w90.mul(I90) + w135.mul(I135))/(w0+w45+w90+w135);
             HDR.convertTo(img,CV_8UC1,255.0f);
+
         }
         else
         {
-            S0.convertTo(img,CV_8UC1,255.0f);
+            // Let WASS use S0 for stereo
+            S0.convertTo( img, CV_8UC1, 255.0f );
         }
 
         if( do_aolp_dolp )
@@ -164,7 +224,7 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
             cv::Mat dolp_color;
             dolp.convertTo(aux,CV_8UC1,255.0);
             cv::applyColorMap(aux, dolp_color, cv::COLORMAP_JET);
-            cv::imwrite( (outdir/"dolp.jpg").string(), dolp_color );
+            cv::imwrite( (outdir/(outfile+"_DOLP.jpg")).string(), dolp_color );
 
             cv::Mat aolp;
             cv::cartToPolar( S2, S1, aux, aolp, false );
@@ -172,21 +232,21 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
 
             cv::Mat aolp_color;
             aolp.convertTo(aux, CV_8UC1, 255.0/3.1415, 127.0);
-            cv::applyColorMap(aux, aolp_color, cv::COLORMAP_JET);
-            cv::imwrite( (outdir/"aolp.jpg").string(), aolp_color );
+            cv::applyColorMap(aux, aolp_color, cv::COLORMAP_HSV);
+            cv::imwrite( (outdir/(outfile+"_AOLP.jpg")).string(), aolp_color );
         }
 
         if( do_save_channels )
         {
             LOGI << "Saving demosaiced channels";
             I0.convertTo( aux, CV_8UC1, 255.0f );
-            cv::imwrite( (outdir/"I0.png").string(), aux );
+            cv::imwrite( (outdir/(outfile+"_I0.png")).string(), aux );
             I45.convertTo( aux, CV_8UC1, 255.0f );
-            cv::imwrite( (outdir/"I45.png").string(), aux );
+            cv::imwrite( (outdir/(outfile+"_I45.png")).string(), aux );
             I90.convertTo( aux, CV_8UC1, 255.0f );
-            cv::imwrite( (outdir/"I90.png").string(), aux );
+            cv::imwrite( (outdir/(outfile+"_I90.png")).string(), aux );
             I135.convertTo( aux, CV_8UC1, 255.0f );
-            cv::imwrite( (outdir/"I135.png").string(), aux );
+            cv::imwrite( (outdir/(outfile+"_I135.png")).string(), aux );
         }
 
     }
@@ -209,7 +269,8 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
     }
 
 
-    cv::imwrite( (outdir/outfile).string(), img_undist );
+    cv::imwrite( (outdir/(outfile+".png")).string(), img_undist );
+
     LOGI << "Output image size: " << img_undist.cols << "x" << img_undist.rows;
 
     return;
@@ -249,6 +310,7 @@ int main( int argc, char* argv[] )
         ("hdr", po::bool_switch()->default_value(false), "Use light polarization to compute HDR intensity image")
         ("dolp-aolp", po::bool_switch()->default_value(false), "Compute DOLP and AOLP and save them as color-mapped images")
         ("save-channels", po::bool_switch()->default_value(false), "Output I0,I45,I90,I135 as separate images")
+        ("save-stokes", po::bool_switch()->default_value(false), "Save the full Stokes vector as 32bit float tiff images")
         ("continue-if-existing", po::bool_switch()->default_value(false), "Don't complain if output dir already exists")
         ("genconfig", po::bool_switch()->default_value(false), "Generate configuration file")
     ;
@@ -409,8 +471,8 @@ int main( int argc, char* argv[] )
     cv::undistort( img, img_undist, intr0, dist0 );
     cv::imwrite( (undist_dir/"00000000.png").string(), img_undist );
 #endif
-    process_image( vm["c0"].as<std::string>(), intr0, dist0, clahe, undist_dir, "00000000.png", 
-                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>() );
+    process_image( vm["c0"].as<std::string>(), intr0, dist0, clahe, undist_dir, "00000000", 
+                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>(), vm["save-stokes"].as<bool>() );
 
     std::cout << "[P|50|100]" << std::endl;
 
@@ -431,8 +493,8 @@ int main( int argc, char* argv[] )
     cv::undistort( img, img_undist, intr1, dist1 );
     cv::imwrite( (undist_dir/"00000001.png").string(), img_undist );
 #endif
-    process_image( vm["c1"].as<std::string>(), intr1, dist1, clahe, undist_dir, "00000001.png", 
-                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>() );
+    process_image( vm["c1"].as<std::string>(), intr1, dist1, clahe, undist_dir, "00000001", 
+                   vm["demosaic"].as<bool>(), vm["hdr"].as<bool>(), vm["dolp-aolp"].as<bool>(), vm["save-channels"].as<bool>(), vm["save-stokes"].as<bool>() );
 
     std::cout << "[P|70|100]" << std::endl;
 

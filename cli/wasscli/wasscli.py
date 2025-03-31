@@ -35,7 +35,7 @@ from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.7"
+VERSION = "0.1.8"
 
 
 WASS_PIPELINE = {
@@ -200,9 +200,10 @@ def do_prepare():
     if answers["demosaic"]:
         polarimetric_images_options = checkbox(
             message="What else should I do after demosaicing?",
-            choices=[Choice("--hdr", name="HDR", enabled=True),
+            choices=[Choice("--hdr", name="HDR", enabled=False),
                      Choice("--save-channels", name="Save saparate images for each polarization channel", enabled=False),
-                     Choice("--dolp-aolp", name="Compute DOLP and AOLP", enabled=False)],
+                     Choice("--save-stokes", name="Save full Stokes' vector", enabled=True),
+                     Choice("--dolp-aolp", name="Compute DOLP and AOLP", enabled=True)],
             validate=lambda result: True,
             invalid_message="",
             instruction="Press space to select, enter to continue"

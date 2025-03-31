@@ -37,7 +37,7 @@ namespace WASS
             return cv::Mat();
         }
 
-        if( boost::filesystem::extension(filename).compare(".xml") == 0 )
+        if( boost::filesystem::path(filename).extension().compare(".xml") == 0 )
         {
             cv::FileStorage fs;
             boost::filesystem::path currfile;
@@ -52,13 +52,13 @@ namespace WASS
             fs.release();
             return M;
         }
-        else if( boost::filesystem::extension(filename).compare(".txt") == 0 )
+        else if( boost::filesystem::path(filename).extension().compare(".txt") == 0 )
         {
             LOGI << "Load TXT not implemented yet";
         }
         else
         {
-            LOGE << "Unrecognized extension: " << boost::filesystem::extension( filename );
+            LOGE << "Unrecognized extension: " << boost::filesystem::path(filename).extension();
         }
 
         return cv::Mat();
