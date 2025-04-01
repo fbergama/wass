@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.9.2"
+VERSION = "0.10.0"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -94,8 +94,21 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
                         [ 0,      0,       0, 1]], dtype=float )
 
     SCALEi = 1.0/baseline
-    P0plane = toNorm @ P0Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
-    P1plane = toNorm @ P1Cam @ RTplane @ np.diag((SCALEi,SCALEi,-SCALEi, 1))
+    D = np.diag((SCALEi,SCALEi,-SCALEi, 1))
+
+    P0plane = toNorm @ P0Cam @ RTplane @ D
+    P1plane = toNorm @ P1Cam @ RTplane @ D
+
+    K0_44 = np.eye(4)
+    K0_44[:3,:3] = K0
+    K1_44 = np.eye(4)
+    K1_44[:3,:3] = K1
+
+    # Compute 4x4 matrices transforming points from
+    # camera reference system to grid reference system
+    #
+    Cam0toGrid = np.linalg.inv(D) @ np.linalg.inv(RTplane) @ np.linalg.inv( np.linalg.inv(K0_44) @ P0Cam )
+    Cam1toGrid = np.linalg.inv(D) @ np.linalg.inv(RTplane) @ np.linalg.inv( np.linalg.inv(K1_44) @ P1Cam )
 
 
     area_size_m_x = np.floor( area_size_x / 2)
@@ -187,6 +200,8 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
         "P1cam":P1Cam[0:3,:],
         "Hcam0toGrid":Hcam0_to_grid,
         "Hcam1toGrid":Hcam1_to_grid,
+        "Cam0toGrid":Cam0toGrid,
+        "Cam1toGrid":Cam1toGrid,
         "Hcam0toTexture":Hcam0_to_texture,
         "Nx":Nx,
         "Ny":Ny,
@@ -251,7 +266,9 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
                              gridsetup["P0plane"],
                              gridsetup["P1plane"],
                              gridsetup["P0cam"],
-                             gridsetup["P1cam"])
+                             gridsetup["P1cam"],
+                             gridsetup["Cam0toGrid"],
+                             gridsetup["Cam1toGrid"])
 
 
     wass_frames_with_indices = [ x for x in enumerate(wass_frames) ]
@@ -467,9 +484,11 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         Zmins.append( np.nanmin(Zi) )
         Zmaxs.append( np.nanmax(Zi) )
 
-        #img_to_load = path.join(wdir,"undistorted","%08d.png"%image_id_to_save ) 
-        img_to_load = path.join(wdir,"%08d_s.png"%image_id_to_save)
+        img_to_load = path.join(wdir,"undistorted","%08d.png"%image_id_to_save ) 
         I0 = cv.imread(img_to_load)
+        if I0.shape[0] == 0:
+            img_to_load = path.join(wdir,"%08d_s.png"%image_id_to_save)
+            I0 = cv.imread(img_to_load)
 
         outdata.add_meta_attribute("image_width", I0.shape[1] )
         outdata.add_meta_attribute("image_height", I0.shape[0] )
