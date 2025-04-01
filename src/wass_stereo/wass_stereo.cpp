@@ -826,18 +826,20 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     disparity = disparity.colRange( numberOfDisparities, right_input.cols+numberOfDisparities );
 
-    /* Debug
+#if 0
+    /* Debug */
     left_image = left_image.colRange( numberOfDisparities, right_input.cols+numberOfDisparities );
     right_image = right_image.colRange( numberOfDisparities, right_input.cols+numberOfDisparities );
-    cv::imwrite(env.workdir+"/stereo_L.png",left_image);
-    cv::imwrite(env.workdir+"/stereo_R.png",right_image);
-    cv::imwrite(env.workdir+"/stereo_D.png",disparity);
-    */
+    cv::imwrite((env.workdir/"stereo_L.png").string(),left_image);
+    cv::imwrite((env.workdir/"stereo_R.png").string(),right_image);
+    cv::imwrite((env.workdir/"stereo_D.png").string(),disparity);
+    /**/
+#endif
 
     //render_disparity16( env.workdir+"/disparity16.png", numberOfDisparities, minDisparity, disp_offset,disparity );
 
     cv::Mat disp_float = clean_and_convert_disparity( disparity, minDisparity, numberOfDisparities, disp_offset, 1.0/scale );
-    WASS::Render::render_disparity_float( (env.workdir / "disparity_stereo_ouput.png").string(), disp_float);
+    WASS::Render::render_disparity_float( (env.workdir / "disparity_stereo_ouput.jpg").string(), disp_float);
 
     // DILATE
     const int disp_dilate_steps = INCFG_GET(DISP_DILATE_STEPS);
@@ -984,7 +986,7 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
     // ------------------------------------------------
     // Debug rendering
 
-    WASS::Render::render_disparity_float( (env.workdir / "disparity_final_scaled.png").string(), disp_float_fullsize );
+    WASS::Render::render_disparity_float( (env.workdir / "disparity_final_scaled.jpg").string(), disp_float_fullsize );
     cv::Mat right_debug;
     cv::cvtColor( env.right_rectified.clone(),right_debug, cv::COLOR_GRAY2RGB);
 

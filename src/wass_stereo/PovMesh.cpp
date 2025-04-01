@@ -454,7 +454,7 @@ bool PovMesh::save_as_xyz_compressed( std::string filename ) const
     delete[] ptdata;
 
     ofs.flush();
-    LOGI << "total data size: " << (static_cast<double>(ofs.tellp())/(1E6)) << " Mb";
+    LOGI << "total data size: " << (static_cast<double>(ofs.tellp())/(1E6)) << " MB";
     ofs.close();
     return true;
 }

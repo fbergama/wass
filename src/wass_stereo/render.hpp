@@ -126,9 +126,11 @@ inline void render_disparity_float( const std::string filename, const cv::Mat& d
     }
 
     // Save a scaled version to save some disk space
-    float scalefac = 600.0f/(float)disprender.rows;
     cv::Mat disprender_scaled;
-    cv::resize(disprender,disprender_scaled,cv::Size(),scalefac,scalefac,cv::INTER_LINEAR);
+    //float scalefac = 600.0f/(float)disprender.rows;
+    //cv::resize(disprender,disprender_scaled,cv::Size(),scalefac,scalefac,cv::INTER_LINEAR);
+    disprender_scaled = disprender;
+
     cv::imwrite( filename, disprender_scaled );
 }
 
