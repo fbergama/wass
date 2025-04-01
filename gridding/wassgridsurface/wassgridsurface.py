@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -34,7 +34,7 @@ import time
 import numpy as np
 import cv2 as cv
 from os import path
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from tqdm.contrib.concurrent import thread_map
 
 
@@ -230,7 +230,7 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0 ):
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0, force_zero_mean=False ):
 
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -293,6 +293,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     Zmeans = []
     Zmins = []
     Zmaxs = []
+
+    Zmean_grids = [ np.zeros_like( XX ) for x in range(NUM_PARALLEL_PROCESSES) ]   # this will store per-pixel average for each interpolator
 
     def _grid_task( iteration_element ):
 
@@ -480,6 +482,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
         # Zi now contains the interpolated surface
 
+        Zmean_grids[ idx % NUM_PARALLEL_PROCESSES ] = Zmean_grids[ idx % NUM_PARALLEL_PROCESSES ] + Zi 
+
         Zmeans.append( np.nanmean(Zi) )
         Zmins.append( np.nanmin(Zi) )
         Zmaxs.append( np.nanmax(Zi) )
@@ -515,11 +519,40 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     #------
     r = thread_map(_grid_task, wass_frames_with_indices, max_workers=NUM_PARALLEL_PROCESSES )
 
-
-
     Zmin = np.amin( np.array(Zmins)) 
     Zmax = np.amax( np.array(Zmaxs)) 
     Zmean = np.mean( np.array(Zmeans)) 
+
+
+
+    Zmean_perpoint = np.sum( np.array( Zmean_grids), axis=0)  / float(N_frames) * 1000
+    fig = plt.figure( figsize=(20,20))
+    plt.imshow(Zmean_perpoint)
+    plt.colorbar()
+    figfile = path.join(outdir,"average_elevation.png")
+    fig.savefig(figfile,bbox_inches='tight')
+    plt.close()
+
+
+    if force_zero_mean:
+        print("Forcing local surface elevation to zero")
+        for ii in trange( N_frames ):
+            outdata.Z[ ii, :, :] = outdata.Z[ ii, :, :] - Zmean_perpoint
+        Zmean = 0.0
+        Zmax = Zmin
+
+
+#    Znetcdf = np.array( outdata.Z )
+#    print(Znetcdf.shape)
+#    Zmean_perpoint = np.sum( np.array( Znetcdf), axis=0)  / float(N_frames)
+#    fig = plt.figure( figsize=(20,20))
+#    plt.imshow(Zmean_perpoint)
+#    plt.colorbar()
+#    figfile = path.join(outdir,"average_elevation_netcdf.png")
+#    fig.savefig(figfile,bbox_inches='tight')
+#    plt.close()
+
+
     outdata.add_meta_attribute("zmin", Zmin )
     outdata.add_meta_attribute("zmax", Zmax )
     outdata.add_meta_attribute("zmean", Zmean )
@@ -579,6 +612,7 @@ def wassgridsurface_main():
     parser.add_argument("-p", "--parallel", type=int, default=1, help="Number of parallel tasks to execute" )
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
+    parser.add_argument("-z", "--force-zero-mean", action="store_true", help='Subtracts the per-grid-point average elevation from each surface' )
     parser.add_argument("--stereo_image_idx", type=int, default=0, help='Which stereo frame to store in the NetCDF, 0 or 1' )
     parser.add_argument("--dct_nfreqs", type=int, default=None, help="DCT interpolator number of frequencies" )
     parser.add_argument("--dct_regalpha", type=float, default=None, help="DCT interpolator regularizer alpha" )
@@ -697,7 +731,8 @@ def wassgridsurface_main():
                   "LEARNING_RATE": args.dct_lr,
                   },
               NUM_PARALLEL_PROCESSES=args.parallel,
-              image_id_to_save=args.stereo_image_idx)
+              image_id_to_save=args.stereo_image_idx,
+              force_zero_mean=args.force_zero_mean)
 
         print("Gridding completed.")
 
