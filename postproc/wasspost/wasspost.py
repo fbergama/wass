@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 #import matplotlib.pyplot as plt
 
-VERSION="0.0.2"
+VERSION="0.1.3"
 
 
 
@@ -35,14 +35,27 @@ def action_info( ncfile ):
         print(S)
 
 
-def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor ):
+
+def action_visibilitymap( ncfile, cam ):
+    print(f"Setting Cam{cam} as reference")
+
+    with Dataset( ncfile, "r") as ds:
+        K = np.array( ds["/meta"].variables[f"intr{cam}"] )
+
+        XX = np.array( ds["X_grid"] )/1000.0
+        YY = np.array( ds["Y_grid"] )/1000.0
+        ZZ = ds["Z"]
+    pass
+
+
+
+def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
 
     with Dataset( ncfile, "r") as ds:
         Pplane = np.array( ds["/meta"].variables[f"P{cam}plane"] )
-
         XX = np.array( ds["X_grid"] )/1000.0
         YY = np.array( ds["Y_grid"] )/1000.0
 
@@ -53,16 +66,20 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor ):
         ZZ = ds["Z"]
 
 
-        N = ZZ.shape[0]
+        if N<=0:
+            N = ZZ.shape[0]
+
         # ----------------------
 
+        all_textures = []
         for idx in trange(N):
             I = None
 
             if not wassdir is None:
                 Ifilename = os.path.join( wassdir, "%06d_wd"%idx, "undistorted", "%08d.png"%cam ) 
                 tqdm.write("Loading %s"%Ifilename )
-                I = cv.imread( Ifilename, cv.IMREAD_GRAYSCALE )
+                #I = cv.imread( Ifilename, cv.IMREAD_GRAYSCALE )
+                I = cv.imread( Ifilename, cv.IMREAD_COLOR )
             else:
                 I = cv.imdecode( ds[f"cam{cam}images"][idx], cv.IMREAD_GRAYSCALE )
 
@@ -91,7 +108,8 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor ):
             mapy = np.reshape( p2d[1,:], ZZ_data.shape ).astype( np.float32 )
 
             texture = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
-            cv.imwrite( os.path.join(outputdir,"tx%05d.png"%idx), texture )
+            all_textures.append( texture )
+            cv.imwrite( os.path.join(outputdir,"tx_%08d.png"%idx), texture )
 
             #plt.figure( figsize=(20,10) )
             #plt.imshow( I, cmap="gray" )
@@ -110,7 +128,11 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor ):
             #texture[ inside_mask]  = I[ pyi[inside_mask], pxi[inside_mask] ]
             #texture = np.reshape( texture, ZZ_data.shape ) 
             #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), texture )
+        
+        tmean = np.mean( np.array( all_textures), axis=0 )
+        cv.imwrite( os.path.join(outputdir,"mean.png"), tmean )
     pass
+
 
 
 def get_action_description():
@@ -121,6 +143,7 @@ def get_action_description():
         visibilitymap: compute visibility map for each grid point 
         texture: generate surface grid texture
         """
+
 
 def wasspost_main():
     parser = argparse.ArgumentParser(
@@ -133,11 +156,18 @@ def wasspost_main():
     parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
     parser.add_argument('--wass_output_dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
     parser.add_argument('--output_dir', "-o", type=str, help="Output directory", default="." )
-    parser.add_argument('--texture_upscale', type=int, help="upscale factor", default="1" )
+    parser.add_argument('--texture_upscale', type=int, help="Upscale factor", default="1" )
+    parser.add_argument('--num_frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
     args = parser.parse_args()
 
 
+    # Global checks
+    if not os.path.exists( args.output_dir ):
+        print(f"Output dir {args.output_dir} does not exists, aborting")
+        return 
+
+    # Action selection
     if args.action=="info":
         action_info( args.ncfile )
     elif args.action=="texture":
-        action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale )
+        action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames )
