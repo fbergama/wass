@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 
 
 
@@ -145,6 +145,7 @@ def action_visibilitymap( ncfile, cam ):
         YY = np.array( ds["Y_grid"] )/1000.0
         ZZ = ds["Z"]
     pass
+
 
 
 def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str ):
@@ -390,6 +391,13 @@ def get_action_description():
         info: prints some info about the specified nc file
         visibilitymap: compute visibility map for each grid point 
         texture: generate surface grid texture
+
+
+    Note 
+    ----------------
+        This program is still under active development. You can
+        expect severe changes between different versions. Use it
+        wisely.
         """
 
 

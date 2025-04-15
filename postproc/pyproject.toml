@@ -33,7 +33,7 @@ repository = "https://github.com/fbergama/wass/tree/master/postproc"
 #changelog = "https://github.com/me/spam/blob/master/CHANGELOG.md"
 
 [project.scripts]
-wassgridsurface = "wasspost:wasspost_main"
+wasspost = "wasspost:wasspost_main"
 
 [tool.setuptools.dynamic]
 version = {attr = "wasspost.wasspost.VERSION"}
