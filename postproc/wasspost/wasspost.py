@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.2.1"
+VERSION="0.3.0"
 
 
 
@@ -135,16 +135,41 @@ def action_info( ncfile ):
 
 
 
-def action_visibilitymap( ncfile, cam ):
+def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
     print(f"Setting Cam{cam} as reference")
 
     with Dataset( ncfile, "r") as ds:
-        K = np.array( ds["/meta"].variables[f"intr{cam}"] )
+
+        Cam2Grid = np.array( ds["/meta"].variables[f"Cam{cam}toGrid"] )
+        cam_origin = np.expand_dims(Cam2Grid[:,-1], axis=-1)
 
         XX = np.array( ds["X_grid"] )/1000.0
         YY = np.array( ds["Y_grid"] )/1000.0
         ZZ = ds["Z"]
-    pass
+        N = ZZ.shape[0]
+
+
+        XXl = np.expand_dims( XX.flatten(), axis=1 )
+        YYl = np.expand_dims( YY.flatten(), axis=1 )
+
+        for idx in trange(N if numframes == 0 else numframes):
+            ZZ_data = np.array( ZZ[idx,:,:] )/1000.0
+            ZZl = np.expand_dims( ZZ_data.flatten(), axis=1 )
+            p3d = np.concatenate( [XXl,YYl,ZZl,ZZl*0], axis=-1 ).T
+            p3d[3,:]=1
+
+            ray_z_g = p3d - cam_origin
+            ray_z_g = ray_z_g[:3, :]
+            ray_z_g = ray_z_g / np.linalg.norm( ray_z_g, axis=0 )  # Rays_z in grid reference system
+
+            # Compute occlusion mask
+            ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
+            occlusion_mask = compute_occlusion_mask(ZZ_data, ray_z_g_g )
+            del ray_z_g_g
+            tqdm.write(f"Image {idx} (Cam {cam}) has {np.sum(occlusion_mask)/occlusion_mask.size*100.0}% occluded points")
+
+            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(idx,cam)), occlusion_mask )
+
 
 
 
@@ -225,7 +250,7 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
             plt.close()
 
 
-            # Compute incident anglies (N dot -ray_z_g)
+            # Compute incident angles (N dot -ray_z_g)
             incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
             incident_angles = np.reshape( incident_angles, XX.shape )
             plt.figure( figsize=(10,10) )
@@ -360,7 +385,7 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
             mapy = np.reshape( p2d[1,:], ZZ_data.shape ).astype( np.float32 )
 
             texture = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
-            cv.imwrite( os.path.join(outputdir,"%08d_tx.png"%idx), texture )
+            cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), texture )
 
             #plt.figure( figsize=(20,10) )
             #plt.imshow( I, cmap="gray" )
@@ -429,3 +454,5 @@ def wasspost_main():
         action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames )
     elif args.action=="psetup":
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir )
+    elif args.action=="visibilitymap":
+        action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames )
