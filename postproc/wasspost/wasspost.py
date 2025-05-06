@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.3.0"
+VERSION="0.3.1"
 
 
 
@@ -32,6 +32,7 @@ def compute_slope_and_normals( XX: np.ndarray, YY: np.ndarray, ZZ: np.ndarray ) 
     normals = np.dstack( (slope_x[:,:,None], slope_y[:,:,None], -np.ones( (ZZ.shape[0],ZZ.shape[1],1)) ) ) 
     normals = -normals / np.linalg.norm( normals, axis=-1, keepdims=True )
     return slope, normals
+
 
 
 def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray ) -> np.ndarray:
@@ -416,6 +417,7 @@ def get_action_description():
         info: prints some info about the specified nc file
         visibilitymap: compute visibility map for each grid point 
         texture: generate surface grid texture
+        psetup: setup polarimetric data for further processing
 
 
     Note 
