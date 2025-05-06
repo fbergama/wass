@@ -35,7 +35,7 @@ from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.8"
+VERSION = "0.1.10"
 
 
 WASS_PIPELINE = {
@@ -142,9 +142,18 @@ def get_workdirs():
 def do_prepare():
 
     if len(os.listdir("output/")) != 0:
-        print( colorama.Fore.RED+"ERROR: "+colorama.Style.RESET_ALL, end="")
-        print("output/ directory must be empty to continue. Please manually remove all the content before attempting to prepare again.")
-        return False
+        print("output/ directory is not empty!")
+        questions = [
+            {
+                'type': 'confirm',
+                'name': 'overwrite',
+                'message': 'Continue anyway and overwrite existing data?',
+                'default': False
+            }
+        ]
+        answers = prompt(questions)
+        if not answers["overwrite"]:
+            return False
 
 
     calib_files = ["config/intrinsics_00.xml","config/intrinsics_01.xml","config/distortion_00.xml","config/distortion_01.xml"]
@@ -214,7 +223,7 @@ def do_prepare():
     for t in tqdm.trange(int(answers["framestoprepare"])):
         wdirname = "output/%06d_wd"%t
         ret = subprocess.run( [WASS_PIPELINE["wass_prepare"],"--workdir", wdirname, "--calibdir", "config/", "--c0", cam0_files[t], "--c1", cam1_files[t], 
-            "%s"%("--demosaic" if answers["demosaic"] else "")]+polarimetric_images_options, capture_output=True )
+            "%s"%("--demosaic" if answers["demosaic"] else ""), "--continue-if-existing" ]+polarimetric_images_options, capture_output=True )
         if ret.returncode != 0:
             print( colorama.Fore.RED+("ERROR while running wass_prepare on frame %06d ****************"%t)+colorama.Style.RESET_ALL)
             print(ret.stdout.decode("ascii"))
