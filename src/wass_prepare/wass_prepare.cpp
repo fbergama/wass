@@ -124,17 +124,17 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         I135.convertTo( I135o, CV_32FC1, 1.0f/255.0f  );
 
 
-        // Upscale using BiCubic interpolation and undistort
-        cv::resize( I0o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        // Upscale using linear interpolation and undistort
+        cv::resize( I0o, aux, cv::Size(), 2, 2, cv::INTER_LINEAR ); 
         cv::undistort( aux, I0o, K, dist );
 
-        cv::resize( I45o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::resize( I45o, aux, cv::Size(), 2, 2, cv::INTER_LINEAR ); 
         cv::undistort( aux, I45o, K, dist );
 
-        cv::resize( I90o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::resize( I90o, aux, cv::Size(), 2, 2, cv::INTER_LINEAR ); 
         cv::undistort( aux, I90o, K, dist );
 
-        cv::resize( I135o, aux, cv::Size(), 2, 2, cv::INTER_CUBIC ); 
+        cv::resize( I135o, aux, cv::Size(), 2, 2, cv::INTER_LINEAR ); 
         cv::undistort( aux, I135o, K, dist );
 
 
@@ -146,13 +146,13 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         // In International Conference on Image Analysis and Processing (pp. 467-478). 
         // Springer International Publishing.
         //
-
         const float k1 = 0.75f;
         const float k2 = 0.25f;
         I0   = ( k1 * I0o + k2 * I45o - k2 * I90o + k2 * I135o);
         I45  = ( k2 * I0o + k1 * I45o + k2 * I90o - k2 * I135o);
         I90  = (-k2 * I0o + k2 * I45o + k1 * I90o + k2 * I135o);
         I135 = ( k2 * I0o - k2 * I45o + k2 * I90o + k1 * I135o);
+
         #if 0
         // check
         aux = I0 + I90 - I45 - I135;
@@ -164,7 +164,7 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         // Compute Stokes vector and save it
         LOGI << "Computing Stokes' vector components";
 
-        cv::Mat S0 = (I0+I45+I90+I135)/4.0f;
+        cv::Mat S0 = (I0+I45+I90+I135)*0.5f;
         cv::minMaxLoc( S0, &mmin, &mmax );
         LOGI << "S0 range: " << mmin << " ... " << mmax;
 
@@ -211,7 +211,7 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
         else
         {
             // Let WASS use S0 for stereo
-            S0.convertTo( img, CV_8UC1, 255.0f );
+            S0.convertTo( img, CV_8UC1, 127.0f );
         }
 
         if( do_aolp_dolp )
@@ -220,6 +220,9 @@ void process_image( std::string filename, const cv::Mat K, const cv::Mat dist, c
             cv::Mat dolp = S1.mul(S1) + S2.mul(S2);
             cv::sqrt(dolp,dolp);
             dolp = dolp / S0;
+
+            cv::minMaxLoc( dolp, &mmin, &mmax );
+            LOGI << "DoLP range: " << mmin << " ... " << mmax;
 
             cv::Mat dolp_color;
             dolp.convertTo(aux,CV_8UC1,255.0);
