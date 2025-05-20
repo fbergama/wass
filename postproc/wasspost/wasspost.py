@@ -7,7 +7,16 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.3.3"
+VERSION="0.3.4"
+
+
+def get_grid( dataset ):
+    XX = np.array( dataset["X_grid"] )/1000.0
+    YY = np.array( dataset["Y_grid"] )/1000.0
+    dx = XX[0,1]-XX[0,0]
+    dy = YY[1,0]-YY[0,0]
+    assert np.allclose( dx, dy), "grid cells must be square"
+    return XX,YY,dx
 
 
 
@@ -35,7 +44,7 @@ def compute_slope_and_normals( XX: np.ndarray, YY: np.ndarray, ZZ: np.ndarray ) 
 
 
 
-def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray ) -> np.ndarray:
+def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray, invert_y_axis = False ) -> np.ndarray:
     """Computes occlusion mask of a surface elevation field
 
     Parameters
@@ -48,6 +57,8 @@ def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray ) -> np.ndarray:
             (i,j,2) must be positive (ie. rays must go
             upward)
 
+        invert_y_axis: invert ray_d y-axis before computation
+
     Returns
         ----------
         a uint8 np.ndarray with shape (W,H) where each
@@ -58,10 +69,15 @@ def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray ) -> np.ndarray:
            surface ZZ)
     """
     assert ray_d.shape == (ZZ.shape[0], ZZ.shape[1], 3 )
-    assert np.amin(ray_d[:,:,-1]>0) # rays must go upward
+    assert np.amin(ray_d[:,:,-1]>0), "rays must go upward"
 
     maxz = np.amax(ZZ)
-    ray_d_norm = np.reshape( ray_d / np.expand_dims( np.amax(ray_d[:,:,:2], axis=-1), axis=-1 ), (-1,3) )
+
+    ray_d_norm = np.reshape( ray_d / np.expand_dims( np.amax( np.abs(ray_d[:,:,:2]), axis=-1), axis=-1 ), (-1,3) )
+
+    if invert_y_axis:
+        ray_d_norm[:,1] *= -1
+
 
     seed_x, seed_y = np.meshgrid( np.arange( ZZ.shape[1], dtype=np.int32), np.arange(ZZ.shape[0], dtype=np.int32) )
     seeds = np.vstack( (seed_x.flatten(), seed_y.flatten()) ).T
@@ -144,11 +160,10 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
         Cam2Grid = np.array( ds["/meta"].variables[f"Cam{cam}toGrid"] )
         cam_origin = np.expand_dims(Cam2Grid[:,-1], axis=-1)
 
-        XX = np.array( ds["X_grid"] )/1000.0
-        YY = np.array( ds["Y_grid"] )/1000.0
         ZZ = ds["Z"]
         N = ZZ.shape[0]
 
+        XX,YY,dx = get_grid( ds )
 
         XXl = np.expand_dims( XX.flatten(), axis=1 )
         YYl = np.expand_dims( YY.flatten(), axis=1 )
@@ -156,20 +171,40 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
         for idx in trange(N if numframes == 0 else numframes):
             ZZ_data = np.array( ZZ[idx,:,:] )/1000.0
             ZZl = np.expand_dims( ZZ_data.flatten(), axis=1 )
-            p3d = np.concatenate( [XXl,YYl,ZZl,ZZl*0], axis=-1 ).T
-            p3d[3,:]=1
+            p3d = np.concatenate( [XXl,YYl,ZZl,ZZl*0+1], axis=-1 ).T
 
             ray_z_g = p3d - cam_origin
             ray_z_g = ray_z_g[:3, :]
             ray_z_g = ray_z_g / np.linalg.norm( ray_z_g, axis=0 )  # Rays_z in grid reference system
 
+            _, Nfield = compute_slope_and_normals( XX, YY, ZZ_data )
+            incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
+            incident_angles = np.reshape( incident_angles, XX.shape )
+
+            #plt.figure( figsize=(10,10) )
+            #plt.imshow( incident_angles, cmap='jet', vmin=0, vmax=90 )
+            #plt.colorbar()
+            #plt.title("Incident angles (deg)")
+            #plt.tight_layout()
+            #plt.savefig( os.path.join( outputdir,"%05d_incident_angles.png"%idx ) )
+            #plt.close()
+
             # Compute occlusion mask
             ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
-            occlusion_mask = compute_occlusion_mask(ZZ_data, ray_z_g_g )
+            occlusion_mask = compute_occlusion_mask( ZZ_data/dx, ray_z_g_g, invert_y_axis=False )
             del ray_z_g_g
-            tqdm.write(f"Image {idx} (Cam {cam}) has {np.sum(occlusion_mask)/occlusion_mask.size*100.0}% occluded points")
 
-            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(idx,cam)), occlusion_mask )
+            #normal_mask = np.zeros_like( occlusion_mask )
+            #cv.imwrite( os.path.join(outputdir,"%08d_normal_mask_cam%01d.png"%(idx,cam)), normal_mask*255 )
+
+            # consider occluded also points with incident angles > 88 deg
+            occlusion_mask[ incident_angles>=88 ] = 1
+
+            n_occluded = np.sum(occlusion_mask)
+            tqdm.write("Image %d (Cam %d) has %d (%3.2f%%) occluded points"%(idx,cam,n_occluded,n_occluded/occlusion_mask.size*100.0))
+
+            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(idx,cam)), occlusion_mask*255 )
+
 
 
 
@@ -196,10 +231,9 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
         K = np.array( ds["/meta"].variables[f"intr{cam}"] )
         cam_origin = np.expand_dims(Cam2Grid[:,-1], axis=-1)
 
-        XX = np.array( ds["X_grid"] )/1000.0
-        YY = np.array( ds["Y_grid"] )/1000.0
         ZZ = ds["Z"]
         N = ZZ.shape[0]
+        XX,YY,dx = get_grid( ds )
 
         Iw, Ih = I.shape[1], I.shape[0]
         toNorm = np.array( [[ 2.0/Iw, 0     , -1, 0],
@@ -271,7 +305,8 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
 
             # Compute occlusion mask
             ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
-            occlusion_mask = compute_occlusion_mask(ZZ_data, ray_z_g_g )
+            occlusion_mask = compute_occlusion_mask(ZZ_data/dx, ray_z_g_g )
+            occlusion_mask[ incident_angles>=88 ] = 1
             del ray_z_g_g
             cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask.png"%idx), occlusion_mask )
 
@@ -349,8 +384,7 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
 
     with Dataset( ncfile, "r") as ds:
         Pplane = np.array( ds["/meta"].variables[f"P{cam}plane"] )
-        XX = np.array( ds["X_grid"] )/1000.0
-        YY = np.array( ds["Y_grid"] )/1000.0
+        XX,YY,_ = get_grid( ds )
 
         for _ in range(upscalefactor-1):
             XX = cv.pyrUp( XX )
