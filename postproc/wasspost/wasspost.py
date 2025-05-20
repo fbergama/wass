@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.3.4"
+VERSION="0.3.5"
 
 
 def get_grid( dataset ):
@@ -209,7 +209,7 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
 
 
 
-def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str ):
+def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int ):
 
     ENABLE_PLOTS=False
 
@@ -244,10 +244,11 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
         Pcam = toNormI @ Pplane 
 
         Savg = np.zeros( (XX.shape[0],XX.shape[1],3), dtype=float )
+        ValidData = np.zeros( (XX.shape[0],XX.shape[1]), dtype=float )
         Navg = np.zeros( (XX.shape[0],XX.shape[1],3), dtype=float )
         Zavg = np.zeros( (XX.shape[0],XX.shape[1]), dtype=float )
 
-        for idx in trange(N):
+        for idx in trange(N if numframes == 0 else numframes):
 
             ZZ_data = np.array( ZZ[idx,:,:] )/1000.0
             Zavg += ZZ_data
@@ -306,26 +307,29 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
             # Compute occlusion mask
             ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
             occlusion_mask = compute_occlusion_mask(ZZ_data/dx, ray_z_g_g )
-            occlusion_mask[ incident_angles>=88 ] = 1
+            occlusion_mask[ incident_angles>=85 ] = 1
             del ray_z_g_g
-            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask.png"%idx), occlusion_mask )
+            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask.png"%idx), occlusion_mask*255 )
 
 
             # Stokes vector's sampling
             S0 = load_data_from_workspace(wassdir,idx,cam,"_S0.tiff", cv.IMREAD_ANYDEPTH )
             assert S0.shape[0] > 0
             S0grid = cv.remap( S0, mapx, mapy, cv.INTER_LINEAR )
+            S0grid[occlusion_mask==1]=np.nan
             del S0
             cv.imwrite( os.path.join(outputdir,"%08d_S0.jpg"%idx), np.clip(S0grid*128.0,0.0,255.0).astype(np.uint8) )
 
             S1 = load_data_from_workspace(wassdir,idx,cam,"_S1.tiff", cv.IMREAD_ANYDEPTH )
             assert S1.shape[0] > 0
             S1grid = cv.remap( S1, mapx, mapy, cv.INTER_LINEAR )
+            S1grid[occlusion_mask==1]=np.nan
             del S1
 
             S2 = load_data_from_workspace(wassdir,idx,cam,"_S2.tiff", cv.IMREAD_ANYDEPTH )
             assert S2.shape[0] > 0
             S2grid = cv.remap( S2, mapx, mapy, cv.INTER_LINEAR )
+            S2grid[occlusion_mask==1]=np.nan
             del S2
 
             dolp = np.sqrt( np.square(S1grid)+np.square(S2grid) ) / S0grid
@@ -334,14 +338,16 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
 
 
             Sgrid = np.concatenate( [np.expand_dims(k,axis=-1) for k in (S0grid, S1grid, S2grid)], axis=-1 )
-            Savg += Sgrid
+
+            Savg += np.nan_to_num(Sgrid)
+            ValidData += (1.0-occlusion_mask.astype(float))
 
             np.savez( os.path.join(outputdir,"%08d_pdata"%idx), S=Sgrid, N_grid=Nfield, rays_cam=ray_z, Cam2Grid=Cam2Grid )
 
 
         # we iterated through all the surfaces
 
-        Savg /= float(N)
+        Savg /= np.expand_dims(ValidData, axis=-1)
         Zavg /= float(N)
         Nnorm = np.linalg.norm( Navg, axis=-1 )
         Navg[:,:,0] /= Nnorm
@@ -503,7 +509,7 @@ def wasspost_main():
     elif args.action=="texture":
         action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames )
     elif args.action=="psetup":
-        action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir )
+        action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
         action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames )
 
