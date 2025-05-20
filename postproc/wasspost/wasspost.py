@@ -7,7 +7,7 @@ import os
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-VERSION="0.3.1"
+VERSION="0.3.3"
 
 
 
@@ -175,6 +175,9 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
 
 
 def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str ):
+
+    ENABLE_PLOTS=False
+
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
@@ -237,30 +240,33 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
             slope, Nfield = compute_slope_and_normals( XX, YY, ZZ_data )
             Navg += Nfield
 
-            plt.figure( figsize=(20,10) )
-            plt.subplot(1,2,1)
-            plt.imshow( slope[:,:,0], cmap='jet' )
-            plt.colorbar()
-            plt.title("Slope X")
-            plt.subplot(1,2,2)
-            plt.imshow( slope[:,:,1], cmap='jet' )
-            plt.colorbar()
-            plt.title("Slope Y")
-            plt.tight_layout()
-            plt.savefig( os.path.join( outputdir,"%05d_slope.png"%idx ) )
-            plt.close()
+            if ENABLE_PLOTS:
+                plt.figure( figsize=(20,10) )
+                plt.subplot(1,2,1)
+                plt.imshow( slope[:,:,0], cmap='jet' )
+                plt.colorbar()
+                plt.title("Slope X")
+                plt.subplot(1,2,2)
+                plt.imshow( slope[:,:,1], cmap='jet' )
+                plt.colorbar()
+                plt.title("Slope Y")
+                plt.tight_layout()
+                plt.savefig( os.path.join( outputdir,"%05d_slope.png"%idx ) )
+                plt.close()
 
 
             # Compute incident angles (N dot -ray_z_g)
             incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
             incident_angles = np.reshape( incident_angles, XX.shape )
-            plt.figure( figsize=(10,10) )
-            plt.imshow( incident_angles, cmap='hsv' )
-            plt.colorbar()
-            plt.title("Incident angles (deg)")
-            plt.tight_layout()
-            plt.savefig( os.path.join( outputdir,"%05d_incident_angles.png"%idx ) )
-            plt.close()
+
+            if ENABLE_PLOTS:
+                plt.figure( figsize=(10,10) )
+                plt.imshow( incident_angles, cmap='hsv' )
+                plt.colorbar()
+                plt.title("Incident angles (deg)")
+                plt.tight_layout()
+                plt.savefig( os.path.join( outputdir,"%05d_incident_angles.png"%idx ) )
+                plt.close()
 
 
             # Compute occlusion mask
@@ -275,7 +281,7 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
             assert S0.shape[0] > 0
             S0grid = cv.remap( S0, mapx, mapy, cv.INTER_LINEAR )
             del S0
-            cv.imwrite( os.path.join(outputdir,"%08d_S0.jpg"%idx), np.clip(S0grid*255.0,0.0,255.0).astype(np.uint8) )
+            cv.imwrite( os.path.join(outputdir,"%08d_S0.jpg"%idx), np.clip(S0grid*128.0,0.0,255.0).astype(np.uint8) )
 
             S1 = load_data_from_workspace(wassdir,idx,cam,"_S1.tiff", cv.IMREAD_ANYDEPTH )
             assert S1.shape[0] > 0
@@ -287,6 +293,11 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
             S2grid = cv.remap( S2, mapx, mapy, cv.INTER_LINEAR )
             del S2
 
+            dolp = np.sqrt( np.square(S1grid)+np.square(S2grid) ) / S0grid
+            dolp = np.clip(dolp*255.0,0.0,255.0).astype(np.uint8) 
+            cv.imwrite( os.path.join(outputdir,"%08d_dolp.jpg"%idx), cv.applyColorMap(dolp, cv.COLORMAP_JET) )
+
+
             Sgrid = np.concatenate( [np.expand_dims(k,axis=-1) for k in (S0grid, S1grid, S2grid)], axis=-1 )
             Savg += Sgrid
 
@@ -296,8 +307,11 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
         # we iterated through all the surfaces
 
         Savg /= float(N)
-        Navg /= np.linalg.norm( Navg, axis=-1 )
         Zavg /= float(N)
+        Nnorm = np.linalg.norm( Navg, axis=-1 )
+        Navg[:,:,0] /= Nnorm
+        Navg[:,:,1] /= Nnorm
+        Navg[:,:,2] /= Nnorm
 
         plt.figure( figsize=(10,10) )
         plt.imshow( Zavg, cmap='jet' )
@@ -320,7 +334,7 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str )
         plt.savefig( os.path.join( outputdir,"avg_S.png" ) )
         plt.close()
 
-        np.savez( os.path.join(outputdir,"pdata_avg"), Savg=Savg, Navg_grid=Navg, Cam2Grid=Cam2Grid )
+        np.savez( os.path.join(outputdir,"pdata_avg"), Savg=Savg, Navg_grid=Navg, Zavg=Zavg, Cam2Grid=Cam2Grid )
 
 
 
@@ -431,7 +445,7 @@ def get_action_description():
 def wasspost_main():
     parser = argparse.ArgumentParser(
                         prog='wasspost',
-                        description='WASS NetCDF post processing tool',
+                        description='WASS NetCDF post processing tool v.'+VERSION,
                         epilog=get_action_description(),
                         formatter_class=RawDescriptionHelpFormatter )
     parser.add_argument('action', choices=['info','visibilitymap','texture', 'psetup'], help='post-processing operation to perform (see below)')
@@ -458,3 +472,5 @@ def wasspost_main():
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir )
     elif args.action=="visibilitymap":
         action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames )
+
+
