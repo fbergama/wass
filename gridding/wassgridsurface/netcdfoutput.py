@@ -21,15 +21,15 @@ import numpy as np
 
 class NetCDFOutput:
 
-    def __init__( self, filename=None, M=8, N=8 ):
+    def __init__( self, filename=None, M=0, N=0 ):
 
         self.rootgrp = None
         if filename == None:
             return
 
         self.rootgrp = Dataset(filename, "w", format="NETCDF4")
-        self.rootgrp.createDimension("X")
-        self.rootgrp.createDimension("Y")
+        self.rootgrp.createDimension("X", N)
+        self.rootgrp.createDimension("Y", M)
         self.rootgrp.createDimension("count")
         self.metagrp = self.rootgrp.createGroup("meta")
 
@@ -72,12 +72,12 @@ class NetCDFOutput:
         self.ky.long_name = "Vertical wavenumbers"
         self.ky.field = "Ky, scalar, series"
 
-        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y",), chunksizes=(8,M,N) )
+        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y") )
         self.Z.units = "millimeter"
         self.Z.long_name = "Z data on time over the XY grid"
         self.Z.field = "Z, scalar, series"
 
-        self.maskZ = self.rootgrp.createVariable( "maskZ", "f4", ("X","Y",) )
+        self.maskZ = self.rootgrp.createVariable( "maskZ", "f4", ("X","Y") )
         self.maskZ.units = ""
         self.maskZ.long_name = "Z mask over the XY grid"
         self.maskZ.field = "Z, scalar, series"
@@ -181,8 +181,8 @@ class NetCDFOutput:
             if not imagemask is None:
                 self.cam0masks[idx] = imagemask
 
-            if idx%10 == 0:
-                self.rootgrp.sync() # Flush data to disk
+            #if idx%10 == 0:
+            #    self.rootgrp.sync() # Flush data to disk
 
 
     # def add_global_attribute( self, name, value ):
