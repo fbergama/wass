@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.11.0"
+VERSION = "0.11.1"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -569,7 +569,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
 def wassgridsurface_main():
     print(" WASS surface gridder v.", VERSION )
-    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\nCopyright (C) Filippo Bergamasco 2022 \n")
+    print("=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\nCopyright (C) Filippo Bergamasco 2022-2025 \n")
 
     howtostring = """
         How to use:
@@ -584,7 +584,7 @@ def wassgridsurface_main():
         3) Edit the grid config file ./gridding/gridconfig.txt with your favourite editor
 
         4) Setup the reconstruction
-            wassgridsurface --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --baseline [CAMERA_BASELINE]
+            wassgridsurface --action setup ./output ./gridding --gridconfig ./gridding/gridconfig.txt --fps [SEQUENCE FPS] --baseline [CAMERA_BASELINE]
 
         5) Open the image ./gridding/area_grid.png to check the extension of the reconstructed area.
            To make changes, go back to step 3.
