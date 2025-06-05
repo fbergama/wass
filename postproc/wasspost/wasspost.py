@@ -4,12 +4,18 @@ from netCDF4 import Dataset
 import numpy as np
 import cv2 as cv
 import os
+import sys
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
-from .geometry import compute_slope_and_normals, compute_occlusion_mask
+import scipy
+import scipy.signal
 
-VERSION="0.3.7"
+from .geometry import compute_slope_and_normals, compute_occlusion_mask
+from .spectra import compute_spectrum
+from .plotting import plot_spectrum
+
+VERSION="0.4.0"
 
 
 
@@ -60,6 +66,94 @@ def action_info( ncfile ):
                 S += "    %s = %s\n"%(a,ds[g].getncattr(a))
 
         print(S)
+
+
+
+def action_filter( ncfile:str, cutoff:float, type:str = "lowpass" ):
+    """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise)
+        time delta between frames must be known
+
+        cutoff: frequency in Hz.
+    """
+
+    with Dataset( ncfile, "r+") as ds:
+
+        if ds["time"].shape[0]<=10:
+            print("Dataset too short. I need more than 10 frames for lowpass filtering")
+            sys.exit(-1)
+
+        dt = ds["time"][1].item(0) - ds["time"][0].item(0)
+        if dt==0:
+            print("Invalid time delta. Please fix sequence FPS first")
+            sys.exit(-1)
+
+        ZZ = ds["Z"]
+        FPS = 1.0/dt
+        order = 8
+        sos = scipy.signal.butter(order, cutoff, btype=type, output='sos', fs=FPS )
+
+        print("\nWARNING: Sea surface elevation data will be modified by this operation!")
+        print("         It is strongly recommended that you backup the NetCDF file first.\n")
+        user_input = input("Do you want to continue? (y/n): ")
+        if user_input.lower() != "y":
+            sys.exit(0)
+
+        print("\nApplying 8th order Butterworth %s filter with cutoff=%3.3f Hz"%(type,cutoff))
+
+        for ii in tqdm( range(ZZ.shape[1]) ):
+            in_timeserie = np.array( ZZ[:,ii,:])
+            out_timeserie = scipy.signal.sosfiltfilt(sos, in_timeserie, axis=0)
+
+            if type=='highpass':
+                # Also remove the mean
+                out_timeserie = out_timeserie - np.mean( out_timeserie, axis=0, keepdims=True )
+
+            ZZ[:,ii,:]=out_timeserie
+
+
+        print("All done.")
+
+
+
+def action_spectrum( ncfile:str, outputdir:str ):
+    """Computes and plots frequency spectrum
+    """
+
+    with Dataset( ncfile, "r") as ds:
+
+        if ds["time"].shape[0]<=512:
+            print("Dataset too short. I need more than 512 frames to compute a reliable spectrum")
+            sys.exit(-1)
+
+        ZZ = ds["Z"]
+        dt = ds["time"][1].item(0) - ds["time"][0].item(0)
+
+        if dt==0:
+            print("Invalid time delta. Please fix sequence FPS first")
+            sys.exit(-1)
+
+        print("Computing frequency spectrum...")
+        f, S, _ = compute_spectrum(ZZ,dt)
+        plot_spectrum(f, S, os.path.join(outputdir,"spectrum.png"))
+
+
+
+
+
+def action_setfps( ncfile:str, FPS:int ):
+    """Overwrites the sequence FPS metadata and recomputes
+       all timestamps. Note: data is not resampled, this function
+       is meant to manually set the timestamps if they were not
+       provied during the gridding phase.
+    """
+
+    with Dataset( ncfile, "r+") as ds:
+        dt = 1.0/float(FPS)
+        N = ds["time"].shape[0]
+        new_times = np.arange(N).astype(float)*dt
+        ds["time"][:] = new_times
+        ds["/meta"].setncattr("fps", FPS)
+        print("New FPS set to ", FPS)
 
 
 
@@ -390,6 +484,11 @@ def get_action_description():
         visibilitymap: compute visibility map for each grid point 
         texture: generate surface grid texture
         psetup: setup polarimetric data for further processing
+        spectrum: plots frequency spectrum
+        setfps: overwrites sequence FPS and recomputes times accordingly
+        lowpass: applies a forward-backward 8th order Butterworth lowpass filter (time-wise)
+        highpass: applies a forward-backward 8th order Butterworth highpass filter (time-wise)
+                 (use the --cutoff argument to set the cut-off frequency in Hz)
 
 
     Note 
@@ -406,12 +505,14 @@ def wasspost_main():
                         description='WASS NetCDF post processing tool v.'+VERSION,
                         epilog=get_action_description(),
                         formatter_class=RawDescriptionHelpFormatter )
-    parser.add_argument('action', choices=['info','visibilitymap','texture', 'psetup'], help='post-processing operation to perform (see below)')
+    parser.add_argument('action', choices=['info','visibilitymap','texture', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
     parser.add_argument('ncfile', help='The NetCDF file to post-process, produced by WASS or WASSfast')
     parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
     parser.add_argument('--wass_output_dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
     parser.add_argument('--output_dir', "-o", type=str, help="Output directory", default="." )
     parser.add_argument('--texture_upscale', type=int, help="Upscale factor", default="1" )
+    parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
+    parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
     parser.add_argument('--num_frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
     args = parser.parse_args()
 
@@ -430,5 +531,17 @@ def wasspost_main():
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
         action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames )
+    elif args.action=="spectrum":
+        action_spectrum( args.ncfile, args.output_dir )
+    elif args.action=="lowpass":
+        action_filter( args.ncfile, args.cutoff, type="lowpass" )
+    elif args.action=="highpass":
+        action_filter( args.ncfile, args.cutoff, type="highpass" )
+    elif args.action=="setfps":
+        if args.fps<=0:
+            print("Please set the desired FPS with the --fps argument")
+            sys.exit(-1)
+
+        action_setfps( args.ncfile, args.fps )
 
 
