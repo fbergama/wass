@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.1...4.0)
 project( wass_autocalibrate )
 
 SET( SBA_ROOT "${PROJECT_SOURCE_DIR}/../../ext/sba-1.6")

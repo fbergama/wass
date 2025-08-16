@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.1...4.0)
 project( wass_prepare )
 
 if( DISABLE_BOOST_LOG )
