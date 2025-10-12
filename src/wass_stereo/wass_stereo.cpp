@@ -1307,18 +1307,20 @@ size_t triangulate( StereoMatchEnv& env )
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_HIGH_REPROJECTION_ERROR;
                     continue;
                 }
+                
+                
 #endif
 
 
                 // point distance check
                 const double ptdistance = cv::norm( p3d );
-                if( ptdistance < env.cam_distance/10.0 )
+                if( ptdistance < env.cam_distance/10.0 || p3d(2)<1.0 )
                 {
                     dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_CLOSE;
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_CLOSE;
                     continue;
                 }
-                if( ptdistance > env.cam_distance*200.0)
+                if( ptdistance > env.cam_distance*200.0 || p3d(2)>1E30 )
                 {
                     dbg_R0.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_DISTANT;
                     dbg_R1.at< cv::Vec3b >( yr_i,xr ) = COLOR_CODE_POINT_TOO_DISTANT;
