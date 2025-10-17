@@ -35,7 +35,7 @@ from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.10"
+VERSION = "0.1.11"
 
 
 WASS_PIPELINE = {
@@ -317,7 +317,7 @@ def do_stereo():
     ]
     answers = prompt(questions)
 
-    with open("output/planes.txt", "w") as fplanes:
+    with open("output/planes.txt" if answers["processall"] else "output/plane_000000.txt", "w") as fplanes:
 
         while( True ):
             print("Running wass_stereo... please be patient")

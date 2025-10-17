@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.11.1"
+VERSION = "0.11.2"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -649,8 +649,7 @@ def wassgridsurface_main():
     if path.exists( planefile ):
         print("Found! Loading...")
         all_planes = np.loadtxt( planefile )
-        meanplane = np.mean( all_planes, axis=0)
-
+        meanplane = np.nanmean( all_planes, axis=0)
 
 
     if not path.exists( args.outdir ):

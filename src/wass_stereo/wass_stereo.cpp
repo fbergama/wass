@@ -2048,39 +2048,54 @@ int main( int argc, char* argv[] )
         }
 
         LOGI << "estimating best fitting plane...";
-        if( !env.mesh->ransac_find_plane( INCFG_GET(PLANE_RANSAC_ROUNDS), INCFG_GET(PLANE_RANSAC_THRESHOLD) ) )
+        if( env.mesh->ransac_find_plane( INCFG_GET(PLANE_RANSAC_ROUNDS), INCFG_GET(PLANE_RANSAC_THRESHOLD) ) )
         {
-            LOGE << "ransac failed.";
-            return -1;
-        }
-        env.timer << "Plane fitting";
-        std::cout << "[P|90|100]" << std::endl;
+            env.timer << "Plane fitting";
+            std::cout << "[P|90|100]" << std::endl;
 
+            LOGI << "refining plane";
 
-        LOGI << "refining plane";
+            env.mesh->crop_plane( INCFG_GET(PLANE_RANSAC_THRESHOLD) );
 
-        env.mesh->crop_plane( INCFG_GET(PLANE_RANSAC_THRESHOLD) );
+            std::vector< cv::Vec3d > dbg_inliers;
+            env.mesh->refine_plane( INCFG_GET(PLANE_REFINE_XMIN), INCFG_GET(PLANE_REFINE_XMAX),
+                    INCFG_GET(PLANE_REFINE_YMIN), INCFG_GET(PLANE_REFINE_YMAX),
+                    &dbg_inliers );
 
-        std::vector< cv::Vec3d > dbg_inliers;
-        env.mesh->refine_plane( INCFG_GET(PLANE_REFINE_XMIN), INCFG_GET(PLANE_REFINE_XMAX),
-                INCFG_GET(PLANE_REFINE_YMIN), INCFG_GET(PLANE_REFINE_YMAX),
-                &dbg_inliers );
-
-        {
-            std::ofstream ofs( (env.workdir/"/plane_refinement_inliers.xyz").c_str() );
-            for( size_t i=0; i<dbg_inliers.size(); i+=10 )
             {
-                ofs << dbg_inliers[i][0] << " " << dbg_inliers[i][1] << " " << dbg_inliers[i][2] << std::endl;
+                std::ofstream ofs( (env.workdir/"/plane_refinement_inliers.xyz").c_str() );
+                for( size_t i=0; i<dbg_inliers.size(); i+=10 )
+                {
+                    ofs << dbg_inliers[i][0] << " " << dbg_inliers[i][1] << " " << dbg_inliers[i][2] << std::endl;
+                }
+                ofs.flush();
+                ofs.close();
             }
-            ofs.flush();
+
+
+            env.mesh->crop_plane( INCFG_GET(PLANE_MAX_DISTANCE) ); // Crop the mesh again since the parameters are changed
+            env.timer << "Plane refinement";
+
+            // Save plane parameters
+            std::vector<double> plane_coeffs = env.mesh->get_plane_params();
+            {
+                std::ofstream ofs( (env.workdir/"/plane.txt").c_str() );
+                ofs << std::setprecision(20);
+                for( int i=0; i<4; ++i)
+                    ofs << plane_coeffs[i] << std::endl;
+                ofs.close();
+            }
+        }
+        else
+        {
+            LOGE << "ransac failed. I'll continue anyway but plane data won't be available!";
+            std::ofstream ofs( (env.workdir/"/plane.txt").c_str() );
+            ofs << "nan nan nan nan" << std::endl;
             ofs.close();
         }
 
 
-        env.mesh->crop_plane( INCFG_GET(PLANE_MAX_DISTANCE) ); // Crop the mesh again since the parameters are changed
-        env.timer << "Plane refinement";
-
-        LOGI << "exporting point cloud data";
+        LOGI << "Exporting point cloud data";
 
         if( INCFG_GET(SAVE_AS_PLY) )
         {
@@ -2105,18 +2120,6 @@ int main( int argc, char* argv[] )
                 LOGE << "unable to save mesh data";
                 return -1;
             }
-        }
-
-
-        // Save plane parameters
-        std::vector<double> plane_coeffs = env.mesh->get_plane_params();
-        {
-            std::ofstream ofs( (env.workdir/"/plane.txt").c_str() );
-            ofs << std::setprecision(20);
-            for( int i=0; i<4; ++i)
-                ofs << plane_coeffs[i] << std::endl;
-            ofs.flush();
-            ofs.close();
         }
 
 
