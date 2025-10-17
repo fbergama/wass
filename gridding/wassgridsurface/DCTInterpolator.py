@@ -109,7 +109,7 @@ class DCTInterpolator:
                     tqdm.write("Iteration %05d - Loss: %6.5f =  data: %6.5f  reg: %6.5f   F max delta: %3.5f"%(ii, loss.item(), data_loss.item(), regularizer_loss.item(), fdelta ) )
                 if fdelta < TOLERANCE_CHANGE:
                     if verbose:
-                        print("Reached min tolerance change, exiting")
+                        tqdm.write("Reached min tolerance change, exiting")
                     break
 
             xprev = torch.clone(x)

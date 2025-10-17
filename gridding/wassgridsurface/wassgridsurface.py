@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.11.2"
+VERSION = "0.11.3"
 
 import matplotlib
 matplotlib.use('AGG')
