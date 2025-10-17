@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.4.0"
+VERSION="0.4.2"
 
 
 
@@ -69,7 +69,7 @@ def action_info( ncfile ):
 
 
 
-def action_filter( ncfile:str, cutoff:float, type:str = "lowpass" ):
+def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True ):
     """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise)
         time delta between frames must be known
 
@@ -92,11 +92,12 @@ def action_filter( ncfile:str, cutoff:float, type:str = "lowpass" ):
         order = 8
         sos = scipy.signal.butter(order, cutoff, btype=type, output='sos', fs=FPS )
 
-        print("\nWARNING: Sea surface elevation data will be modified by this operation!")
-        print("         It is strongly recommended that you backup the NetCDF file first.\n")
-        user_input = input("Do you want to continue? (y/n): ")
-        if user_input.lower() != "y":
-            sys.exit(0)
+        if askconfirm:
+            print("\nWARNING: Sea surface elevation data will be modified by this operation!")
+            print("         It is strongly recommended that you backup the NetCDF file first.\n")
+            user_input = input("Do you want to continue? (y/n): ")
+            if user_input.lower() != "y":
+                sys.exit(0)
 
         print("\nApplying 8th order Butterworth %s filter with cutoff=%3.3f Hz"%(type,cutoff))
 
@@ -514,6 +515,7 @@ def wasspost_main():
     parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
     parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
     parser.add_argument('--num_frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
+    parser.add_argument('--assume-yes', action=argparse.BooleanOptionalAction, help="Assume yes if a question is asked" )
     args = parser.parse_args()
 
 
@@ -534,9 +536,9 @@ def wasspost_main():
     elif args.action=="spectrum":
         action_spectrum( args.ncfile, args.output_dir )
     elif args.action=="lowpass":
-        action_filter( args.ncfile, args.cutoff, type="lowpass" )
+        action_filter( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None )
     elif args.action=="highpass":
-        action_filter( args.ncfile, args.cutoff, type="highpass" )
+        action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None )
     elif args.action=="setfps":
         if args.fps<=0:
             print("Please set the desired FPS with the --fps argument")
