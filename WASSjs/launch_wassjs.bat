@@ -1,1 +1,0 @@
-start /Dext launch_redis.bat && npm update && npm install && start node Wass.js && start http://localhost:8080
