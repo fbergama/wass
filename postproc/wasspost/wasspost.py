@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.4.2"
+VERSION="0.4.3"
 
 
 
