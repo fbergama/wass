@@ -1,6 +1,6 @@
 """
 wassgridsurface
-Copyright (C) 2023 Filippo Bergamasco
+Copyright (C) 2025 Filippo Bergamasco
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.11.3"
+VERSION = "0.11.4"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -111,8 +111,8 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
     Cam1toGrid = np.linalg.inv(D) @ np.linalg.inv(RTplane) @ np.linalg.inv( np.linalg.inv(K1_44) @ P1Cam )
 
 
-    area_size_m_x = np.floor( area_size_x / 2)
-    area_size_m_y = np.floor( area_size_y / 2)
+    area_size_m_x = area_size_x / 2
+    area_size_m_y = area_size_y / 2
     xmin = area_center[0]-area_size_m_x
     xmax = area_center[0]+area_size_m_x
     ymin = area_center[1]-area_size_m_y
