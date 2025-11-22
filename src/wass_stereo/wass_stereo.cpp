@@ -71,6 +71,7 @@ INCFG_REQUIRE( bool, SAVE_COMPRESSED, true, "Save in 16-bit compressed format" )
 
 INCFG_REQUIRE( bool, USE_CUSTOM_STEREORECTIFY, false, "Use built-in stereorectify algorithm instead of the one provided by OpenCV" )
 INCFG_REQUIRE( bool, DISABLE_RECTIFY_ROI, false, "Disable automatic ROI computation during stereo rectification (only enabled if USE_CUSTOM_STEREORECTIFY=true)" )
+INCFG_REQUIRE( double, RECTIFY_ANGLE, 0.0, "Additional rotation to apply around the baseline (only enabled if USE_CUSTOM_STEREORECTIFY=true" )
 
 #ifdef WASS_ENABLE_OPTFLOW
 INCFG_REQUIRE( bool, USE_OPTICAL_FLOW, false, "Use optical flow for 3D reconstruction (experimental)" )
@@ -494,9 +495,11 @@ bool rectify( StereoMatchEnv& env )
 
     if( INCFG_GET( USE_CUSTOM_STEREORECTIFY ) )
     {
-        LOGI << "Using WASS custom stereorectify";
+        double baseline_rot = INCFG_GET( RECTIFY_ANGLE );
 
-        stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, imgsize, imgsize, imgsize, env.HL, env.HR, ROI);
+        LOGI << "Using WASS custom stereorectify, baseline angle delta=" << baseline_rot;
+
+        stereoRectifyUndistorted( env.intrinsics_left, env.intrinsics_right, env.Rinv, env.Tinv, baseline_rot, imgsize, imgsize, imgsize, env.HL, env.HR, ROI);
 
         env.HLi = env.HL.inv();
         env.HRi = env.HR.inv();
@@ -605,7 +608,7 @@ bool rectify( StereoMatchEnv& env )
         env.right_crop = env.right_rectified(env.roi_comb_right).clone();
 
     }
-    LOGI << "rectification map generated";
+    LOGI << "rectification map generated. Size: " << env.left_crop.cols << "x" << env.left_crop.rows;
     return true;
 }
 

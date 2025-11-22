@@ -35,8 +35,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  * For the general algorithm, see:
  * E. Trucco, A. Verri, "Introductory Techniques for 3-D Computer Vision", page 160
  *
- * Additionally, the rectifying plane is rotated around the epipole so that the resulting
- * projective transformations as as close as possible (in algebraic sense) to an affine
+ * Additionally, the rectifying plane is rotated around the baseline so that the resulting
+ * projective transformations is as close as possible (in algebraic sense) to an affine
  * transformation.
  *
  *  Parameters:
@@ -44,6 +44,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *             K0:  CAM0 intrinsic matrix
  *             K1:  CAM1 intrinsic matrix
  *            R,T:  Roto-translation transforming points from CAM1 to CAM0 reference frames
+ *      rot_angle:  Desired rotation around the baseline. Use 0.0 to optimize it.
  * I0Size, I1Size:  CAM0 and CAM1 size respectively
  *        outSize:  Size of the rectified images
  *         H0, H1:  Output homographies to be applied to CAM0 and CAM1 respectively
@@ -57,6 +58,7 @@ void stereoRectifyUndistorted( const cv::Matx33d K0,
                                const cv::Matx33d K1,
                                const cv::Matx33d R,
                                const cv::Vec3d T,
+                               const double rot_angle,
                                const cv::Size I0Size,
                                const cv::Size I1Size,
                                const cv::Size outSize,
@@ -141,11 +143,16 @@ void stereoRectifyUndistorted( const cv::Matx33d K0,
     opt->setInitStep(step);
     opt->setTermCriteria( cv::TermCriteria( cv::TermCriteria::MAX_ITER+cv::TermCriteria::EPS, 500000, 1E-40 )  );
 
-    //std::cout << "Optimizing best rectifying plane... ";
-    cv::Mat x=(cv::Mat_<double>(2,1)<<0.0,0.0);
-    opt->minimize( x );
-    double best_angle = x.at<double>(0,0);
-    //std::cout << "DONE" << std::endl << "Best angle: " << best_angle << " deg." << std::endl;
+    double best_angle = rot_angle;
+
+    if( rot_angle == 0 )
+    {
+        std::cout << "Optimizing best rectifying plane... ";
+        cv::Mat x=(cv::Mat_<double>(2,1)<<0.0,0.0);
+        opt->minimize( x );
+        best_angle = x.at<double>(0,0);
+        std::cout << "DONE" << std::endl << "Best angle: " << best_angle << " deg." << std::endl;
+    }
 
     hf->calc( &best_angle );
     H0 = hf->H0();
