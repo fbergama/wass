@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.4.4"
+VERSION="0.5.0"
 
 
 
@@ -69,7 +69,7 @@ def action_info( ncfile ):
 
 
 
-def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True ):
+def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True, filter_variable:str="Z", overwrite:bool=False ):
     """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise)
         time delta between frames must be known
 
@@ -87,14 +87,25 @@ def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bo
             print("Invalid time delta. Please fix sequence FPS first")
             sys.exit(-1)
 
-        ZZ = ds["Z"]
+        filter_output = filter_variable if overwrite else (filter_variable+"_filtered")
+
+        print("Filter input->output: %s -> %s"%(filter_variable, filter_output) )
+        ZZ = ds[filter_variable]
+
+        if not filter_output in ds.variables:
+            print("Creating output variable %s"%filter_output )
+            _ = ds.createVariable(filter_output, datatype=ZZ.datatype, dimensions=ZZ.dimensions )
+
+
+        ZZout = ds[filter_output]
+
         FPS = 1.0/dt
         order = 8
         sos = scipy.signal.butter(order, cutoff, btype=type, output='sos', fs=FPS )
 
-        if askconfirm:
-            print("\nWARNING: Sea surface elevation data will be modified by this operation!")
-            print("         It is strongly recommended that you backup the NetCDF file first.\n")
+        if askconfirm and overwrite:
+            print("\nWARNING: data in the nc variable %s will be modified by this operation!"%filter_variable )
+            print("           It is strongly recommended that you backup the NetCDF file first.\n")
             user_input = input("Do you want to continue? (y/n): ")
             if user_input.lower() != "y":
                 sys.exit(0)
@@ -109,7 +120,7 @@ def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bo
                 # Also remove the mean
                 out_timeserie = out_timeserie - np.mean( out_timeserie, axis=0, keepdims=True )
 
-            ZZ[:,ii,:]=out_timeserie
+            ZZout[:,ii,:] = out_timeserie
 
 
         print("All done.")
@@ -218,7 +229,7 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
 
 
 
-def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int ):
+def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int, into_nc:bool ):
     """Computes DOLP/AOLP/normals etc. for further polarimetric processing
     """
 
@@ -236,11 +247,13 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
     Iw, Ih = I.shape[1], I.shape[0]
     print("Image size: %dx%d"%(Iw,Ih))
 
-    with Dataset( ncfile, "r") as ds:
+    with Dataset( ncfile, "r" ) as ds:
+
         Pplane = np.array( ds["/meta"].variables[f"P{cam}plane"] )
         Cam2Grid = np.array( ds["/meta"].variables[f"Cam{cam}toGrid"] )
         K = np.array( ds["/meta"].variables[f"intr{cam}"] )
         cam_origin = np.expand_dims(Cam2Grid[:,-1], axis=-1)
+
 
         ZZ = ds["Z"]
         N = ZZ.shape[0]
@@ -394,14 +407,17 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 
 
-def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
+def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:bool ):
     """Computes sea surface texture with respect to the elevation grid
     """
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
 
-    with Dataset( ncfile, "r") as ds:
+    with Dataset( ncfile, "r+" if into_nc else "r" ) as ds:
+
+        radiance_dataset = None
+
         Pplane = np.array( ds["/meta"].variables[f"P{cam}plane"] )
         XX,YY,_ = get_grid( ds )
 
@@ -415,7 +431,18 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
         if N<=0:
             N = ZZ.shape[0]
 
+
+        if into_nc:
+            # check if radiance dataset exists
+            radiance_variable_name = "/radiance_cam%d"%cam
+            try:
+                radiance_dataset = ds[radiance_variable_name]
+                print("Data will be inserted in variable %s inside nc file"%radiance_variable_name )
+            except IndexError:
+                radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y") )
+                print("%s variable created in NCfile"%radiance_variable_name )
         # ----------------------
+
 
         for idx in trange(N):
             I = None
@@ -453,7 +480,11 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N ):
             mapy = np.reshape( p2d[1,:], ZZ_data.shape ).astype( np.float32 )
 
             texture = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
-            cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), texture )
+
+            if into_nc:
+                radiance_dataset[ idx, ...] = texture/256.0
+            else:
+                cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), texture )
 
             #plt.figure( figsize=(20,10) )
             #plt.imshow( I, cmap="gray" )
@@ -514,8 +545,11 @@ def wasspost_main():
     parser.add_argument('--texture_upscale', type=int, help="Upscale factor", default="1" )
     parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
     parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
+    parser.add_argument('--filter-variable', type=str, help="nc variable to filter", default="Z" )
     parser.add_argument('--num_frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
     parser.add_argument('--assume-yes', action=argparse.BooleanOptionalAction, help="Assume yes if a question is asked" )
+    parser.add_argument('--into-nc', action=argparse.BooleanOptionalAction, help="Insert data into NC file instead of producing images" )
+    parser.add_argument('--overwrite', action=argparse.BooleanOptionalAction, help="Overwrite data when filtering" )
     args = parser.parse_args()
 
 
@@ -528,7 +562,7 @@ def wasspost_main():
     if args.action=="info":
         action_info( args.ncfile )
     elif args.action=="texture":
-        action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames )
+        action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames, into_nc=args.into_nc )
     elif args.action=="psetup":
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
@@ -536,9 +570,9 @@ def wasspost_main():
     elif args.action=="spectrum":
         action_spectrum( args.ncfile, args.output_dir )
     elif args.action=="lowpass":
-        action_filter( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None )
+        action_filter( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
     elif args.action=="highpass":
-        action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None )
+        action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
     elif args.action=="setfps":
         if args.fps<=0:
             print("Please set the desired FPS with the --fps argument")
