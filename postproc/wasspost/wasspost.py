@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.4.3"
+VERSION="0.4.4"
 
 
 
@@ -122,8 +122,8 @@ def action_spectrum( ncfile:str, outputdir:str ):
 
     with Dataset( ncfile, "r") as ds:
 
-        if ds["time"].shape[0]<=512:
-            print("Dataset too short. I need more than 512 frames to compute a reliable spectrum")
+        if ds["time"].shape[0]<=256:
+            print("Dataset too short. I need more than 256 frames to compute a reliable spectrum")
             sys.exit(-1)
 
         ZZ = ds["Z"]
@@ -134,7 +134,7 @@ def action_spectrum( ncfile:str, outputdir:str ):
             sys.exit(-1)
 
         print("Computing frequency spectrum...")
-        f, S, _ = compute_spectrum(ZZ,dt)
+        f, S, _ = compute_spectrum(ZZ, dt, scale=1/1000 ) # wass nc files are in mm.
         plot_spectrum(f, S, os.path.join(outputdir,"spectrum.png"))
 
 

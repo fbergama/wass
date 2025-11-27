@@ -14,7 +14,7 @@ def plot_spectrum( f, S, filename ):
     ax.grid(which='minor')
     ax.set_ylabel("$S (m^2 s)$")
     ax.set_xlabel("$f_a (Hz)$")
-    ax.set_ylim( (maxenergy*1E-4, maxenergy*3))
+    ax.set_ylim( (maxenergy*1E-8, maxenergy*3))
 
 
 
