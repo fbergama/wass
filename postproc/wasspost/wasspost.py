@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.5.1"
+VERSION="0.6.0"
 
 
 
@@ -407,8 +407,8 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 
 
-def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:bool ):
-    """Computes sea surface texture with respect to the elevation grid
+def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:bool ):
+    """Computes sea surface radiance with respect to the elevation grid
     """
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
@@ -476,12 +476,12 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:b
             mapx = np.reshape( p2d[0,:], ZZ_data.shape ).astype( np.float32 )
             mapy = np.reshape( p2d[1,:], ZZ_data.shape ).astype( np.float32 )
 
-            texture = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
+            radiance = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
 
             if into_nc:
-                radiance_dataset[ idx, ...] = texture/256.0
+                radiance_dataset[ idx, ...] = radiance/256.0
             else:
-                cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), texture )
+                cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), radiance )
 
             #plt.figure( figsize=(20,10) )
             #plt.imshow( I, cmap="gray" )
@@ -496,10 +496,10 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:b
             #inside_mask = np.logical_and( np.logical_and( pxi >= 0 , pxi < Iw ),
             #np.logical_and( pyi >= 0 , pyi < Ih ) )
             #
-            #texture = np.zeros( ZZ_data.shape, dtype=np.uint8 ).flatten()
-            #texture[ inside_mask]  = I[ pyi[inside_mask], pxi[inside_mask] ]
-            #texture = np.reshape( texture, ZZ_data.shape ) 
-            #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), texture )
+            #radiance = np.zeros( ZZ_data.shape, dtype=np.uint8 ).flatten()
+            #radiance[ inside_mask]  = I[ pyi[inside_mask], pxi[inside_mask] ]
+            #radiance = np.reshape( radiance, ZZ_data.shape ) 
+            #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), radiance )
         
     pass
 
@@ -511,7 +511,7 @@ def get_action_description():
     ----------------
         info: prints some info about the specified nc file
         visibilitymap: compute visibility map for each grid point 
-        texture: generate surface grid texture
+        radiance: generate surface grid radiance texture
         psetup: setup polarimetric data for further processing
         spectrum: plots frequency spectrum
         setfps: overwrites sequence FPS and recomputes times accordingly
@@ -534,12 +534,12 @@ def wasspost_main():
                         description='WASS NetCDF post processing tool v.'+VERSION,
                         epilog=get_action_description(),
                         formatter_class=RawDescriptionHelpFormatter )
-    parser.add_argument('action', choices=['info','visibilitymap','texture', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
+    parser.add_argument('action', choices=['info','visibilitymap','radiance', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
     parser.add_argument('ncfile', help='The NetCDF file to post-process, produced by WASS or WASSfast')
     parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
     parser.add_argument('--wass_output_dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
     parser.add_argument('--output_dir', "-o", type=str, help="Output directory", default="." )
-    parser.add_argument('--texture_upscale', type=int, help="Upscale factor", default="1" )
+    parser.add_argument('--radiance_upscale', type=int, help="Upscale factor", default="1" )
     parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
     parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
     parser.add_argument('--filter-variable', type=str, help="nc variable to filter", default="Z" )
@@ -558,8 +558,8 @@ def wasspost_main():
     # Action selection
     if args.action=="info":
         action_info( args.ncfile )
-    elif args.action=="texture":
-        action_texture( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.texture_upscale, args.num_frames, into_nc=args.into_nc )
+    elif args.action=="radiance":
+        action_radiance( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.radiance_upscale, args.num_frames, into_nc=args.into_nc )
     elif args.action=="psetup":
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
