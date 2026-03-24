@@ -15,7 +15,7 @@ from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
-VERSION="0.5.0"
+VERSION="0.5.1"
 
 
 
@@ -35,7 +35,7 @@ def get_grid( dataset ):
 
 def load_data_from_workspace( wassdir: str, workspace_index: int, cam: int, extension=".png", imread_flags=cv.IMREAD_GRAYSCALE ): 
     Ifilename = os.path.join( wassdir, "%06d_wd"%workspace_index, "undistorted", "%08d%s"%(cam,extension) ) 
-    tqdm.write("Loading %s"%Ifilename )
+    #tqdm.write("Loading %s"%Ifilename )
     I = cv.imread( Ifilename, imread_flags )
     return I
 
@@ -448,9 +448,6 @@ def action_texture( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:b
             I = None
 
             if not wassdir is None:
-                #Ifilename = os.path.join( wassdir, "%06d_wd"%idx, "undistorted", "%08d.png"%cam ) 
-                #tqdm.write("Loading %s"%Ifilename )
-                #I = cv.imread( Ifilename, cv.IMREAD_GRAYSCALE )
                 I = load_data_from_workspace( wassdir, idx, cam )
             else:
                 I = cv.imdecode( ds[f"cam{cam}images"][idx], cv.IMREAD_GRAYSCALE )
