@@ -8,12 +8,18 @@ import sys
 from tqdm.auto import tqdm, trange
 import matplotlib.pyplot as plt
 
+import warnings
+from dask.diagnostics import ProgressBar
+import xarray as xr
+from scipy.ndimage import uniform_filter1d
+
 import scipy
 import scipy.signal
 
 from .geometry import compute_slope_and_normals, compute_occlusion_mask
 from .spectra import compute_spectrum
 from .plotting import plot_spectrum
+
 
 VERSION="0.6.0"
 
@@ -505,6 +511,126 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
 
 
 
+def action_bgimage( ncfile, cam, filtersize ):
+
+    radiance_variable_name = "radiance_cam%d"%cam
+    output_variable_name = "radiance_bgimage_cam%d"%cam
+
+    temp_file = os.path.join( os.path.dirname(ncfile), '___temp.nc' )
+    chunk_size = {'count': filtersize, 'X': 128, 'Y': 128}
+
+    print(f"Filtering {ncfile}/{radiance_variable_name} to {temp_file}/{output_variable_name}")
+    print(f"Box-filter size: {filtersize}x1x1")
+
+
+    with warnings.catch_warnings():
+        # Suppress UserWarnings about unoptimal chunk_size. I know that is unoptimal, but
+        # X:128 and Y:128 is needed because with a large M the chunk won't fit in RAM.
+        #
+        warnings.simplefilter("ignore", category=UserWarning)   
+
+        with xr.open_dataset(ncfile, chunks=chunk_size, decode_timedelta=False ) as ds:
+            da_var = ds[radiance_variable_name]
+            
+            # Apply the out-of-core filter using Dask's map_overlap
+            filtered_data = da_var.data.map_overlap(
+                lambda x: uniform_filter1d(x, size=filtersize, axis=0, mode='reflect'),
+                depth={0: filtersize // 2, 1: 0, 2: 0},
+                boundary='reflect',
+                dtype=da_var.dtype
+            )
+            
+            # Wrap the Dask array back into a new xarray Dataset
+            ds_new = xr.Dataset({
+                output_variable_name: xr.DataArray(filtered_data, coords=da_var.coords, dims=da_var.dims)
+            })
+            
+            with ProgressBar():
+                ds_new.to_netcdf( temp_file )
+
+    print(f"Writing data into {ncfile}/{output_variable_name}")
+
+    # Append the new variable back into the original file
+    with xr.open_dataset(temp_file) as ds_temp:
+
+        # Strip the hidden encoding metadata that causes the "Invalid argument" error
+        ds_temp[output_variable_name].encoding.clear()
+
+        # Write to ncfile
+        ds_temp.to_netcdf(ncfile, mode='a')
+
+    print(f"Cleaning up...")
+
+
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
+        print(f"Deleted temporary file: {temp_file}")
+
+    print("Process finished!")
+
+
+
+
+def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False ):
+
+    radiance_variable ="radiance_cam%d"%cam 
+    radiance_bg_variable = "radiance_bgimage_cam%d"%cam
+    output_variable = "radiance_thresholded_cam%d"%cam
+
+
+    with Dataset(ncfile, "r+") as ds:
+
+        if not radiance_bg_variable in ds.variables:
+            print(f"/{radiance_bg_variable} not found in ncfile. Run bgimage action first.")
+            sys.exit(-1)
+
+        if not radiance_variable in ds.variables:
+            print(f"/{radiance_variable} not found in ncfile. Run radiance action first.")
+            sys.exit(-1)
+        
+        radiance_bg = ds[radiance_bg_variable]
+        radiance = ds[radiance_variable]
+
+        N = radiance.shape[0]
+
+        print(f"Thresholding {radiance_variable} -> {output_variable}")
+        if use_vats:
+            print("Using VATS for threshold")
+        else:
+            print(f"Threshold val: {threshold_val}")
+
+        if not output_variable in ds.variables:
+            print("Creating output variable %s"%output_variable )
+            _ = ds.createVariable(output_variable, datatype='u8', dimensions=radiance.dimensions )
+
+        for ii in trange(N):
+            I = radiance[ii,:,:]
+            Ibg = radiance_bg[ii,:,:]
+
+            Isub = I - (Ibg - np.amin(Ibg))
+
+            if use_vats:
+                h, bin_edges = np.histogram( Isub, bins=30, density=True )
+                xx = np.arange( h.shape[0] )
+
+                pts = np.concatenate( (xx[np.newaxis,...], h[np.newaxis,...], np.ones( (1,h.shape[0] ) ) ))
+
+                peak_idx = np.argmax(h)
+                
+                p1 = pts[:, peak_idx]
+                p2 = pts[:, -1]
+                l = np.cross( p1, p2 )
+                distances = np.abs( l @ pts )
+
+                threshold_idx = np.argmax( distances[peak_idx:] )+peak_idx
+                threshold_val = bin_edges[ threshold_idx+1 ]
+
+
+            thresholded = (Isub>threshold_val).astype(np.uint8)
+            ds[ output_variable ][ii,:,:] = thresholded
+
+
+
 def get_action_description():
     return """
     Post-processing operations:
@@ -512,6 +638,8 @@ def get_action_description():
         info: prints some info about the specified nc file
         visibilitymap: compute visibility map for each grid point 
         radiance: generate surface grid radiance texture
+        radiance-threshold: creates a binary mask based on the radiance intensity 
+        bgimage: computes the time averaged background image for each radiance image in the sequence 
         psetup: setup polarimetric data for further processing
         spectrum: plots frequency spectrum
         setfps: overwrites sequence FPS and recomputes times accordingly
@@ -534,16 +662,17 @@ def wasspost_main():
                         description='WASS NetCDF post processing tool v.'+VERSION,
                         epilog=get_action_description(),
                         formatter_class=RawDescriptionHelpFormatter )
-    parser.add_argument('action', choices=['info','visibilitymap','radiance', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
+    parser.add_argument('action', choices=['info','visibilitymap','radiance', 'bgimage', 'radiance-threshold', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
     parser.add_argument('ncfile', help='The NetCDF file to post-process, produced by WASS or WASSfast')
     parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
-    parser.add_argument('--wass_output_dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
-    parser.add_argument('--output_dir', "-o", type=str, help="Output directory", default="." )
-    parser.add_argument('--radiance_upscale', type=int, help="Upscale factor", default="1" )
+    parser.add_argument('--wass-output-dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
+    parser.add_argument('--output-dir', "-o", type=str, help="Output directory", default="." )
+    parser.add_argument('--radiance-upscale', type=int, help="Upscale factor", default="1" )
+    parser.add_argument('--bgimage-filter-size', type=int, help="Filter size for time-average bg image generation", default="2000" )
     parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
     parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
     parser.add_argument('--filter-variable', type=str, help="nc variable to filter", default="Z" )
-    parser.add_argument('--num_frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
+    parser.add_argument('--num-frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
     parser.add_argument('--assume-yes', action=argparse.BooleanOptionalAction, help="Assume yes if a question is asked" )
     parser.add_argument('--into-nc', action=argparse.BooleanOptionalAction, help="Insert data into NC file instead of producing images" )
     parser.add_argument('--overwrite', action=argparse.BooleanOptionalAction, help="Overwrite data when filtering" )
@@ -560,6 +689,12 @@ def wasspost_main():
         action_info( args.ncfile )
     elif args.action=="radiance":
         action_radiance( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.radiance_upscale, args.num_frames, into_nc=args.into_nc )
+    elif args.action=="radiance-threshold":
+        action_radiance_threshold( args.ncfile, args.cam )
+    elif args.action=="bgimage":
+        action_bgimage( args.ncfile, args.cam, args.bgimage_filter_size )
+    elif args.action=="radiance-threshold":
+        action_bgimage( args.ncfile, args.cam )
     elif args.action=="psetup":
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
