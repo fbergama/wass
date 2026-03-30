@@ -1,5 +1,6 @@
 import argparse
 from argparse import RawDescriptionHelpFormatter
+import netCDF4 as nc
 from netCDF4 import Dataset
 import numpy as np
 import cv2 as cv
@@ -57,7 +58,7 @@ def action_info( ncfile ):
         S = ""
         S += "\nVariables:\n\n"
         for v in ds.variables:
-            S += "%s - %s (%s)\n"%(v, ds.variables[v].shape,ds.variables[v].dtype)
+            S += "%s - %s %s (%s) chunking: %s\n"%(v, ds.variables[v].dimensions, ds.variables[v].shape, ds.variables[v].dtype, ds.variables[v].chunking() )
         #S += "\nAttributes:\n\n"
         #for a in ds.ncattrs():
         #    S += " - %s = %s\n"%(a,ds.getncattr(a))
@@ -72,6 +73,93 @@ def action_info( ncfile ):
                 S += "    %s = %s\n"%(a,ds[g].getncattr(a))
 
         print(S)
+
+
+def action_filter_fast( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True, filter_variable:str="Z", overwrite:bool=False ):
+    return
+
+    temp_file = os.path.join( os.path.dirname(ncfile), '___temp.nc' )
+
+    with Dataset( ncfile, "r") as ds:
+
+        if ds["time"].shape[0]<=10:
+            print("Dataset too short. I need more than 10 frames for lowpass filtering")
+            sys.exit(-1)
+
+        dt = ds["time"][1].item(0) - ds["time"][0].item(0)
+        if dt==0:
+            print("Invalid time delta. Please fix sequence FPS first")
+            sys.exit(-1)
+
+        filter_output = filter_variable if overwrite else (filter_variable+"_filtered")
+        variable_chunking = ds[filter_variable].chunking()
+
+
+    print(f"Step 1: Applying Butterworth filter and writing to temp file {temp_file}")
+    print("Filter input->output: %s -> %s"%(filter_variable, filter_output) )
+    print(f"Input variable chunking: {variable_chunking}")
+
+    chunk_size = {'count': -1, 'X': variable_chunking[1], 'Y': variable_chunking[2]}
+    print(f"Filter will operate with chunking: {chunk_size}")
+
+    # Note: it is crucial to chunk count = -1 to process
+    # the whole timeseries without splitting them in smaller chunks
+
+    with xr.open_dataset(ncfile, chunks=chunk_size, decode_timedelta=False ) as ds:
+        da_var = ds[filter_variable]
+
+        FPS = np.round( 1.0/dt )
+        order = 8
+        sos = scipy.signal.butter( order, cutoff, btype=type, output='sos', fs=FPS )
+        print(f"Filter order: {order}, fps: {FPS}")
+        
+
+        def apply_butterworth(chunk):
+            """
+            This function will be passed to Dask. 
+            It receives a 3D numpy array chunk formatted as (:, y, x).
+            """
+            return scipy.signal.sosfiltfilt(sos, chunk, axis=0)
+
+        
+        # 3. Apply the vectorized filter block-by-block
+        filtered_data = da_var.data.map_blocks(
+            apply_butterworth,
+            dtype=da_var.dtype,
+            drop_axis=None,
+            new_axis=None
+        )
+        
+        ds_new = xr.Dataset({
+            filter_output: xr.DataArray(filtered_data, coords=da_var.coords, dims=da_var.dims)
+        })
+
+
+        if "chunksizes" in ds_new[filter_output].encoding:
+            del ds_new[filter_output].encoding["chunksizes"]
+        if "chunks" in ds_new[filter_output].encoding:
+            del ds_new[filter_output].encoding["chunks"]
+
+        write_encoding = { filter_output: { "chunksizes": variable_chunking }}
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with ProgressBar():
+                ds_new.to_netcdf(temp_file, encoding=write_encoding)
+
+
+    print("\nStep 2: Stripping metadata and appending to original file...")
+
+    with xr.open_dataset(temp_file) as ds_temp:
+        with ProgressBar():
+            ds_temp.to_netcdf(ncfile, mode='a')
+
+    print("Cleaning up...")
+    if os.path.exists(temp_file):
+        os.remove(temp_file)
+        print(f"Deleted temporary file: {temp_file}")
+
+    print("Filter finished!") 
 
 
 
@@ -409,6 +497,12 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 
 
+def configure_nc_cache( num_blocks=128 ):
+    chunk_size_bytes = 512 * 128 * 128 * 4
+    cache_size_bytes = 128 * chunk_size_bytes  # ~3.35 GB
+    cache_slots = 10009 
+    print(f"Allocating {cache_size_bytes / (1024**3):.2f} GB of RAM for the NetCDF IO operations...")
+    nc.set_chunk_cache(size=cache_size_bytes, nelems=cache_slots, preemption=0.0)
 
 
 
@@ -419,6 +513,7 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
+
 
     with Dataset( ncfile, "r+" if into_nc else "r" ) as ds:
 
@@ -445,9 +540,11 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
                 radiance_dataset = ds[radiance_variable_name]
                 print("Data will be inserted in variable %s inside nc file"%radiance_variable_name )
             except IndexError:
-                radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y") )
+                radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
                 print("%s variable created in NCfile"%radiance_variable_name )
         # ----------------------
+
+
 
 
         for idx in trange(N):
@@ -485,7 +582,7 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
             radiance = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
 
             if into_nc:
-                radiance_dataset[ idx, ...] = radiance/256.0
+                radiance_dataset[ idx, ...] = radiance.astype(np.float32)/255.0
             else:
                 cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), radiance )
 
@@ -507,7 +604,6 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
             #radiance = np.reshape( radiance, ZZ_data.shape ) 
             #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), radiance )
         
-    pass
 
 
 
@@ -683,6 +779,8 @@ def wasspost_main():
     if not os.path.exists( args.output_dir ):
         print(f"Output dir {args.output_dir} does not exists, aborting")
         return 
+
+    configure_nc_cache()
 
     # Action selection
     if args.action=="info":
