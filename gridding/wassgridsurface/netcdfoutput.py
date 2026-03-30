@@ -16,7 +16,7 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-from netCDF4 import Dataset
+import netCDF4 as nc
 import numpy as np
 
 class NetCDFOutput:
@@ -27,7 +27,17 @@ class NetCDFOutput:
         if filename == None:
             return
 
-        self.rootgrp = Dataset(filename, "w", format="NETCDF4")
+        CHUNK_X = 128
+        CHUNK_Y = 128
+        CHUNK_C = 512
+        
+        chunk_size_bytes = 512 * 128 * 128 * 4
+        cache_size_bytes = 128 * chunk_size_bytes
+        cache_slots = 10009 
+        print(f"Allocating {cache_size_bytes / (1024**3):.2f} GB of RAM for the NetCDF IO operations...")
+        nc.set_chunk_cache(size=cache_size_bytes, nelems=cache_slots, preemption=0.0)
+
+        self.rootgrp = nc.Dataset(filename, "w", format="NETCDF4")
         self.rootgrp.createDimension("X", N)
         self.rootgrp.createDimension("Y", M)
         self.rootgrp.createDimension("count")
@@ -72,7 +82,7 @@ class NetCDFOutput:
         self.ky.long_name = "Vertical wavenumbers"
         self.ky.field = "Ky, scalar, series"
 
-        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y") )
+        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
         self.Z.units = "millimeter"
         self.Z.long_name = "Z data on time over the XY grid"
         self.Z.field = "Z, scalar, series"

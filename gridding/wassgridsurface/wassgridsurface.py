@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.11.4"
+VERSION = "0.12.0"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -36,6 +36,8 @@ import cv2 as cv
 from os import path
 from tqdm import tqdm, trange
 from tqdm.contrib.concurrent import thread_map
+import threading
+import h5py
 
 
 import colorama
@@ -242,7 +244,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     Tp2c = -Rp2c@Tpl
 
 
-    outdata = NetCDFOutput( filename=path.join(outdir,"gridded.nc" ), M=XX.shape[0], N=XX.shape[1] )
+    ncfile = path.join(outdir,"gridded.nc" )
+    outdata = NetCDFOutput( filename=ncfile, M=XX.shape[0], N=XX.shape[1] )
     baseline = gridsetup["CAM_BASELINE"].item(0)
 
     fps = gridsetup["fps"].item(0)
@@ -290,6 +293,8 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     # Create a dedicated interpolator for each parallel process
     interpolators = [ IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options ) for x in range(NUM_PARALLEL_PROCESSES) ]
 
+    nc_lock = threading.Lock()
+
     Zmeans = []
     Zmins = []
     Zmaxs = []
@@ -301,7 +306,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         idx, wdir = iteration_element
         interpolator = interpolators[ idx % NUM_PARALLEL_PROCESSES ]
 
-        tqdm.write(wdir)
+        #tqdm.write(wdir)
         dirname = path.split( wdir )[-1]
         FRAME_IDX = int(dirname[:-3])
 
@@ -494,8 +499,6 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
             img_to_load = path.join(wdir,"%08d_s.png"%image_id_to_save)
             I0 = cv.imread(img_to_load)
 
-        outdata.add_meta_attribute("image_width", I0.shape[1] )
-        outdata.add_meta_attribute("image_height", I0.shape[0] )
         _, imgjpeg = cv.imencode(".jpg", I0 )
 
         mask_filename = path.join( wdir, "undistorted", "mask%d.png"%image_id_to_save ) 
@@ -504,7 +507,10 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
             with open( mask_filename, "rb" ) as f:
                 imagemask = np.fromfile(f, np.uint8 );
 
-        outdata.push_Z( Zi*1000, float(idx)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask, idx=idx )
+        with nc_lock:
+            outdata.add_meta_attribute("image_width", I0.shape[1] )
+            outdata.add_meta_attribute("image_height", I0.shape[0] )
+            outdata.push_Z( Zi*1000, float(idx)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask, idx=idx )
 
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
@@ -536,26 +542,47 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
     if force_zero_mean:
         print("Forcing local surface elevation to zero")
-        for ii in trange( N_frames ):
-            outdata.Z[ ii, :, :] = outdata.Z[ ii, :, :] - Zmean_perpoint
         Zmean = 0.0
         Zmax = Zmin
 
+        outdata.add_meta_attribute("zmin", Zmin )
+        outdata.add_meta_attribute("zmax", Zmax )
+        outdata.add_meta_attribute("zmean", Zmean )
+        outdata.close()
 
-#    Znetcdf = np.array( outdata.Z )
-#    print(Znetcdf.shape)
-#    Zmean_perpoint = np.sum( np.array( Znetcdf), axis=0)  / float(N_frames)
-#    fig = plt.figure( figsize=(20,20))
-#    plt.imshow(Zmean_perpoint)
-#    plt.colorbar()
-#    figfile = path.join(outdir,"average_elevation_netcdf.png")
-#    fig.savefig(figfile,bbox_inches='tight')
-#    plt.close()
+        # Reopen again with h5py for chunked processing
+        with h5py.File(ncfile, 'r+') as f:
+            z_var = f['Z']
+            
+            # iter_chunks() returns a generator of slice tuples.
+            # For a (count, X, Y) array, it yields: (slice_count, slice_x, slice_y)
+            chunks = list(z_var.iter_chunks())
+            
+            for chunk_slice in tqdm(chunks, desc="Modifying data chunks"):
+                # 1. Extract the spatial slices from the tuple
+                x_slice = chunk_slice[1]
+                y_slice = chunk_slice[2]
+                
+                # 2. Subset our 2D mean to match the spatial footprint of this chunk
+                local_mean = Zmean_perpoint[x_slice, y_slice]
+                
+                # 3. Read the exact chunk from disk into memory (fast, single read)
+                chunk_data = z_var[chunk_slice]
+                
+                # 4. Subtract. NumPy broadcasts the 2D local_mean across the count dimension natively
+                chunk_data = chunk_data - local_mean
+                
+                # 5. Write the modified block back to disk (fast, single write)
+                z_var[chunk_slice] = chunk_data
+    else:
+
+        outdata.add_meta_attribute("zmin", Zmin )
+        outdata.add_meta_attribute("zmax", Zmax )
+        outdata.add_meta_attribute("zmean", Zmean )
+        outdata.close()
 
 
-    outdata.add_meta_attribute("zmin", Zmin )
-    outdata.add_meta_attribute("zmax", Zmax )
-    outdata.add_meta_attribute("zmean", Zmean )
+    print("All done!")
 
     print("Reconstructed sequence stats: ")
     print("    Zmin: ",Zmin)
@@ -563,7 +590,6 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     print("   Zmean: ",Zmean)
     print("# frames: ",N_frames)
 
-    outdata.close()
 
 
 
