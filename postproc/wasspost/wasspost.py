@@ -14,6 +14,9 @@ from dask.diagnostics import ProgressBar
 import xarray as xr
 from scipy.ndimage import uniform_filter1d
 
+from tqdm.contrib.concurrent import thread_map
+import threading
+
 import scipy
 import scipy.signal
 
@@ -22,7 +25,7 @@ from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="0.6.0"
+VERSION="0.6.1"
 
 
 
@@ -264,34 +267,63 @@ def action_setfps( ncfile:str, FPS:int ):
 
 
 
-def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
+def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bool, n_threads=10 ):
     """Computes visibility map
     """
     print(f"Setting Cam{cam} as reference")
 
-    with Dataset( ncfile, "r") as ds:
+    nc_lock = threading.Lock()
+
+    with Dataset( ncfile, "r+" if into_nc else "r" ) as ds:
 
         Cam2Grid = np.array( ds["/meta"].variables[f"Cam{cam}toGrid"] )
         cam_origin = np.expand_dims(Cam2Grid[:,-1], axis=-1)
 
         ZZ = ds["Z"]
         N = ZZ.shape[0]
+        Zshape = ZZ.shape
 
         XX,YY,dx = get_grid( ds )
 
         XXl = np.expand_dims( XX.flatten(), axis=1 )
         YYl = np.expand_dims( YY.flatten(), axis=1 )
 
-        for idx in trange(N if numframes == 0 else numframes):
-            ZZ_data = np.array( ZZ[idx,:,:] )/1000.0
-            ZZl = np.expand_dims( ZZ_data.flatten(), axis=1 )
+        if into_nc:
+            # check if visibility dataset exists
+            visibility_variable_name = "/occlusion_cam%d"%cam
+            try:
+                visibility_dataset = ds[visibility_variable_name]
+                print("Data will be inserted in variable %s inside nc file"%visibility_variable_name )
+            except IndexError:
+                visibility_dataset = ds.createVariable(visibility_variable_name, datatype="u8", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
+                print("%s variable created in NCfile"%visibility_variable_name )
+        # ----------------------
+
+
+    configure_nc_cache(16)
+
+
+    def _task( batch ):
+
+        with nc_lock:
+            with Dataset( ncfile, "r" ) as ds:
+                ZZ = ds["Z"]
+                ZZ_data = np.array( ZZ[batch,:,:] )/1000.0
+
+        tqdm.write("Batch loaded, processing...")
+
+        occlusion_masks = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2]), dtype=np.uint8 )
+        occlusion_perc = np.zeros( len(batch))
+
+        for ii in range(len(batch)):
+            ZZl = np.expand_dims( ZZ_data[ii,...].flatten(), axis=1 )
             p3d = np.concatenate( [XXl,YYl,ZZl,ZZl*0+1], axis=-1 ).T
 
             ray_z_g = p3d - cam_origin
             ray_z_g = ray_z_g[:3, :]
             ray_z_g = ray_z_g / np.linalg.norm( ray_z_g, axis=0 )  # Rays_z in grid reference system
 
-            _, Nfield = compute_slope_and_normals( XX, YY, ZZ_data )
+            _, Nfield = compute_slope_and_normals( XX, YY, ZZ_data[ii,...] )
             incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
             incident_angles = np.reshape( incident_angles, XX.shape )
 
@@ -305,7 +337,7 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
 
             # Compute occlusion mask
             ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
-            occlusion_mask = compute_occlusion_mask( ZZ_data/dx, ray_z_g_g, invert_y_axis=False )
+            occlusion_mask = compute_occlusion_mask( ZZ_data[ii,...]/dx, ray_z_g_g, invert_y_axis=False )
             del ray_z_g_g
 
             #normal_mask = np.zeros_like( occlusion_mask )
@@ -313,11 +345,336 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int ):
 
             # consider occluded also points with incident angles > 88 deg
             occlusion_mask[ incident_angles>=88 ] = 1
-
             n_occluded = np.sum(occlusion_mask)
-            tqdm.write("Image %d (Cam %d) has %d (%3.2f%%) occluded points"%(idx,cam,n_occluded,n_occluded/occlusion_mask.size*100.0))
 
-            cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(idx,cam)), occlusion_mask*255 )
+
+            #tqdm.write("Image %d (cam %d) has %d (%3.2f%%) occluded points"%(batch[ii],cam,n_occluded,n_occluded/occlusion_mask.size*100.0))
+            occlusion_perc[ii] = n_occluded/occlusion_mask.size*100.0
+            occlusion_masks[ii,...] = occlusion_mask
+
+            if not into_nc:
+                cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(batch[ii],cam)), occlusion_mask*255 )
+
+        # batch processing complete, store the data into nc file
+        tqdm.write(f"batch process complete, avg. occlusion {np.mean(occlusion_perc)}%")
+        if into_nc:
+            with nc_lock:
+                with Dataset( ncfile, "r+" ) as ds:
+                    visibility_dataset[ batch, ... ] = occlusion_masks
+    
+            tqdm.write("batch stored.")
+
+
+    BATCH_SIZE = 8
+    chunk_ids = list(range(N if numframes==0 else numframes))
+
+    batches = [chunk_ids[i:i + BATCH_SIZE] for i in range(0, len(chunk_ids), BATCH_SIZE )]
+    r = thread_map(_task, batches, max_workers=n_threads )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -499,7 +856,7 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 def configure_nc_cache( num_blocks=128 ):
     chunk_size_bytes = 512 * 128 * 128 * 4
-    cache_size_bytes = 128 * chunk_size_bytes  # ~3.35 GB
+    cache_size_bytes = num_blocks * chunk_size_bytes  # ~3.35 GB
     cache_slots = 10009 
     print(f"Allocating {cache_size_bytes / (1024**3):.2f} GB of RAM for the NetCDF IO operations...")
     nc.set_chunk_cache(size=cache_size_bytes, nelems=cache_slots, preemption=0.0)
@@ -796,7 +1153,7 @@ def wasspost_main():
     elif args.action=="psetup":
         action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
     elif args.action=="visibilitymap":
-        action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames )
+        action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames, into_nc=args.into_nc )
     elif args.action=="spectrum":
         action_spectrum( args.ncfile, args.output_dir )
     elif args.action=="lowpass":
