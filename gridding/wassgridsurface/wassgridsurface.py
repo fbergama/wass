@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.12.0"
+VERSION = "0.12.1"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -543,7 +543,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
     if force_zero_mean:
         print("Forcing local surface elevation to zero")
         Zmean = 0.0
-        Zmax = Zmin
+        Zmax = -Zmin
 
         outdata.add_meta_attribute("zmin", Zmin )
         outdata.add_meta_attribute("zmax", Zmax )
