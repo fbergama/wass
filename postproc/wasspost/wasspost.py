@@ -25,7 +25,16 @@ from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="0.6.1"
+VERSION="0.6.2"
+
+
+
+def configure_nc_cache( num_blocks=128 ):
+    chunk_size_bytes = 512 * 128 * 128 * 4
+    cache_size_bytes = num_blocks * chunk_size_bytes  
+    cache_slots = 10009 
+    print(f"Allocating {cache_size_bytes / (1024**3):.2f} GB of RAM for the NetCDF IO operations...")
+    nc.set_chunk_cache(size=cache_size_bytes, nelems=cache_slots, preemption=0.0)
 
 
 
@@ -79,7 +88,7 @@ def action_info( ncfile ):
 
 
 def action_filter_fast( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True, filter_variable:str="Z", overwrite:bool=False ):
-    return
+    print("UNTESTED!!!! Use with caution")
 
     temp_file = os.path.join( os.path.dirname(ncfile), '___temp.nc' )
 
@@ -227,6 +236,7 @@ def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bo
 def action_spectrum( ncfile:str, outputdir:str ):
     """Computes and plots frequency spectrum
     """
+    configure_nc_cache(32)
 
     with Dataset( ncfile, "r") as ds:
 
@@ -295,7 +305,7 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, int
                 visibility_dataset = ds[visibility_variable_name]
                 print("Data will be inserted in variable %s inside nc file"%visibility_variable_name )
             except IndexError:
-                visibility_dataset = ds.createVariable(visibility_variable_name, datatype="u8", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
+                visibility_dataset = ds.createVariable(visibility_variable_name, datatype="u1", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
                 print("%s variable created in NCfile"%visibility_variable_name )
         # ----------------------
 
@@ -375,315 +385,11 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, int
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int, into_nc:bool ):
     """Computes DOLP/AOLP/normals etc. for further polarimetric processing
     """
 
+    configure_nc_cache(32)
     ENABLE_PLOTS=False
 
     print(f"Setting Cam{cam} as reference")
@@ -854,12 +560,6 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 
 
-def configure_nc_cache( num_blocks=128 ):
-    chunk_size_bytes = 512 * 128 * 128 * 4
-    cache_size_bytes = num_blocks * chunk_size_bytes  # ~3.35 GB
-    cache_slots = 10009 
-    print(f"Allocating {cache_size_bytes / (1024**3):.2f} GB of RAM for the NetCDF IO operations...")
-    nc.set_chunk_cache(size=cache_size_bytes, nelems=cache_slots, preemption=0.0)
 
 
 
@@ -871,6 +571,7 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
 
+    configure_nc_cache(64)
 
     with Dataset( ncfile, "r+" if into_nc else "r" ) as ds:
 
@@ -900,8 +601,6 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
                 radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
                 print("%s variable created in NCfile"%radiance_variable_name )
         # ----------------------
-
-
 
 
         for idx in trange(N):
@@ -966,6 +665,7 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
 
 def action_bgimage( ncfile, cam, filtersize ):
 
+    configure_nc_cache(16)
     radiance_variable_name = "radiance_cam%d"%cam
     output_variable_name = "radiance_bgimage_cam%d"%cam
 
@@ -1030,6 +730,7 @@ def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False )
     radiance_bg_variable = "radiance_bgimage_cam%d"%cam
     output_variable = "radiance_thresholded_cam%d"%cam
 
+    configure_nc_cache(64)
 
     with Dataset(ncfile, "r+") as ds:
 
@@ -1054,7 +755,7 @@ def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False )
 
         if not output_variable in ds.variables:
             print("Creating output variable %s"%output_variable )
-            _ = ds.createVariable(output_variable, datatype='u8', dimensions=radiance.dimensions )
+            _ = ds.createVariable(output_variable, datatype='u1', dimensions=radiance.dimensions )
 
         for ii in trange(N):
             I = radiance[ii,:,:]
@@ -1137,8 +838,6 @@ def wasspost_main():
         print(f"Output dir {args.output_dir} does not exists, aborting")
         return 
 
-    configure_nc_cache()
-
     # Action selection
     if args.action=="info":
         action_info( args.ncfile )
@@ -1157,7 +856,7 @@ def wasspost_main():
     elif args.action=="spectrum":
         action_spectrum( args.ncfile, args.output_dir )
     elif args.action=="lowpass":
-        action_filter( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
+        action_filter_fast( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
     elif args.action=="highpass":
         action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
     elif args.action=="setfps":
