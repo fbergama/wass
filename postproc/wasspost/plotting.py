@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_spectrum( f, S, filename ):
+def plot_spectrum( f, S, varname, filename ):
     plt.rcParams['text.usetex'] = True
     plt.rcParams.update({'font.size': 25})
 
@@ -17,14 +17,13 @@ def plot_spectrum( f, S, filename ):
     ax.set_ylim( (maxenergy*1E-8, maxenergy*3))
 
 
-
     ax.set_xticks([0.1, maxfreq, 0.5, 0.9], labels=["0.1", "%1.2f"%maxfreq, "0.5", "0.9"])
     plt.axvline(x = maxfreq, color='b', linestyle='dashed')
     #plt.axvline(x = 0.80, color='b', linestyle='dashed')
     #plt.axvline(x = 0.85, color='b', linestyle='dashed')
     #plt.axvline(x = 0.90, color='b', linestyle='dashed')
     #ax.legend()
-    ax.set_title("Frequency spectrum (peak @ %2.3f Hz)"%maxfreq)
+    ax.set_title("%s frequency spectrum (peak @ %2.3f Hz)"%(varname,maxfreq) )
     fig.tight_layout()
     print("Saving ",filename)
     fig.savefig(filename)

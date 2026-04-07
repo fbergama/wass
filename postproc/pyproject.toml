@@ -19,7 +19,7 @@ classifiers = [
 ]
 dependencies = [
     "matplotlib","colorama","scipy","numpy","tqdm",
-    "opencv-python>=2.4.6", "netcdf4", "xarray"
+    "opencv-python>=2.4.6", "netcdf4", "xarray", "click"
 ]
 dynamic = ["version"]
 

@@ -1,3 +1,26 @@
+###################################################################################
+# wasspost: The WASS post processing tool                                         #
+#                                                                                 #
+# Copyright (C) 2026 Ca' Foscari University of Venice                             #
+#                                                                                 #
+# This program is free software: you can redistribute it and/or modify it under   #
+# the terms of the GNU General Public License as published by the Free Software   #
+# Foundation, either version 3 of the License, or (at your option) any later      #
+# version.                                                                        #
+#                                                                                 #
+# This program is distributed in the hope that it will be useful, but WITHOUT ANY #
+# WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A #
+# PARTICULAR PURPOSE. See the GNU General Public License for more details.        #
+#                                                                                 #
+# You should have received a copy of the GNU General Public License along         #
+# with this program. If not, see <https://www.gnu.org/licenses/>.                 #
+###################################################################################
+#                                                                                 #
+#  Author(s):                                                                     #
+#  - Filippo Bergamasco                                                           #
+#                                                                                 #
+###################################################################################
+import click
 import argparse
 from argparse import RawDescriptionHelpFormatter
 import netCDF4 as nc
@@ -25,8 +48,12 @@ from .spectra import compute_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="0.6.2"
+VERSION="1.0.0"
 
+@click.group()
+def cli():
+    """wasspost"""
+    pass
 
 
 def configure_nc_cache( num_blocks=128 ):
@@ -61,7 +88,9 @@ def load_data_from_workspace( wassdir: str, workspace_index: int, cam: int, exte
 
 
 
-def action_info( ncfile ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+def info( ncfile ):
     """Prints info about a WASS' NetCDF file
     """
     print(f"Opening {ncfile}")
@@ -87,7 +116,21 @@ def action_info( ncfile ):
         print(S)
 
 
-def action_filter_fast( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True, filter_variable:str="Z", overwrite:bool=False ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cutoff', type=float, default=1.0, help="filter cutoff in Hz (default=1.0)" )
+@click.option('--lowpass', 'type', flag_value="lowpass", default=True, help="Lowpass filter (default)" )
+@click.option('--highpass', 'type', flag_value="highpass", help="Highpass filter" )
+@click.option('--askconfirm', is_flag=True, default=True )
+@click.option('--filter-variable', type=str, default="Z", help="Name of the variable to filter (default='Z')"  )
+@click.option('--overwrite', is_flag=True, default=False, help="Overwrite variable data in place (not reccommended)" )
+def filter_fast( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable, overwrite ):
+    """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise).
+
+        THIS IS THE PARALLEL FAST VERSION. 
+        
+        Not extensively tested, use with caution.
+    """
     print("UNTESTED!!!! Use with caution")
 
     temp_file = os.path.join( os.path.dirname(ncfile), '___temp.nc' )
@@ -175,11 +218,16 @@ def action_filter_fast( ncfile:str, cutoff:float, type:str = "lowpass", askconfi
 
 
 
-def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bool = True, filter_variable:str="Z", overwrite:bool=False ):
-    """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise)
-        time delta between frames must be known
-
-        cutoff: frequency in Hz.
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cutoff', type=float, default=1.0, help="filter cutoff in Hz (default=1.0)" )
+@click.option('--lowpass', 'type', flag_value="lowpass", default=True, help="Lowpass filter (default)" )
+@click.option('--highpass', 'type', flag_value="highpass", help="Highpass filter" )
+@click.option('--askconfirm', is_flag=True, default=True )
+@click.option('--filter-variable', type=str, default="Z", help="Name of the variable to filter (default='Z')"  )
+@click.option('--overwrite', is_flag=True, default=False, help="Overwrite variable data in place (not reccommended)" )
+def filter( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable:str, overwrite:bool ):
+    """ Applies an 8th order Butterworth lowpass or highpass filter (time-wise).
     """
 
     with Dataset( ncfile, "r+") as ds:
@@ -232,11 +280,16 @@ def action_filter( ncfile:str, cutoff:float, type:str = "lowpass", askconfirm:bo
         print("All done.")
 
 
-
-def action_spectrum( ncfile:str, outputdir:str ):
+@cli.command()
+@click.argument('ncfile', type=str)
+@click.option('--filename', type=str, default="./%s_spectrum.png", help="Plot filename (default: %s_spectrum.png  where %s=variable)"  )
+@click.option('--variable', type=str, default="Z", help="Name of the variable on which to compute the spectrum (default='Z')"  )
+def spectrum( ncfile:str, filename:str, variable:str ):
     """Computes and plots frequency spectrum
     """
     configure_nc_cache(32)
+
+    print(f"Computing spectrum on variable /{variable}")
 
     with Dataset( ncfile, "r") as ds:
 
@@ -244,7 +297,7 @@ def action_spectrum( ncfile:str, outputdir:str ):
             print("Dataset too short. I need more than 256 frames to compute a reliable spectrum")
             sys.exit(-1)
 
-        ZZ = ds["Z"]
+        ZZ = ds[variable]
         dt = ds["time"][1].item(0) - ds["time"][0].item(0)
 
         if dt==0:
@@ -253,18 +306,26 @@ def action_spectrum( ncfile:str, outputdir:str ):
 
         print("Computing frequency spectrum...")
         f, S, _ = compute_spectrum(ZZ, dt, scale=1/1000 ) # wass nc files are in mm.
-        plot_spectrum(f, S, os.path.join(outputdir,"spectrum.png"))
+        plot_spectrum(f, S, variable, filename%variable)
 
 
 
 
-
+@cli.command()
+@click.argument('ncfile', type=str)
+@click.argument('FPS', type=int)
 def action_setfps( ncfile:str, FPS:int ):
     """Overwrites the sequence FPS metadata and recomputes
-       all timestamps. Note: data is not resampled, this function
+       all timestamps. 
+
+       Note: data is not resampled, this function
        is meant to manually set the timestamps if they were not
        provied during the gridding phase.
     """
+
+    if FPS<=0:
+        print("FPS must be > 0")
+        return
 
     with Dataset( ncfile, "r+") as ds:
         dt = 1.0/float(FPS)
@@ -276,9 +337,15 @@ def action_setfps( ncfile:str, FPS:int ):
 
 
 
-
-def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bool, n_threads=10 ):
-    """Computes visibility map
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
+@click.option('--outputdir', type=str, default="./", help="Where to store the output images (if into-nc is false) (default='./')"  )
+@click.option('--numframes', type=int, default=-1, help="Number of frames to process (-1 to process all the frames, default)" )
+@click.option('--into-nc', is_flag=True, default=True, help="Visibility map is stored inside the nc file" )
+@click.option('--n-threads', type=int, default=10, help="Number of parallel threads to speed up the processing (default=10)" )
+def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bool, n_threads:int ):
+    """Computes the visibility map of grid points
     """
     print(f"Setting Cam{cam} as reference")
 
@@ -385,7 +452,14 @@ def action_visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, int
 
 
 
-def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int, into_nc:bool ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
+@click.option('--wassdir', type=str, default="./output", help="WASS output directory (default=./output)"  )
+@click.option('--outputdir', type=str, default="./", help="Where to store the output images (if into-nc is false) (default='./')"  )
+@click.option('--numframes', type=int, default=-1, help="Number of frames to process (-1 to process all the frames, default)" )
+@click.option('--into-nc', is_flag=True, default=True, help="Visibility map is stored inside the nc file" )
+def polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numframes:int, into_nc:bool ):
     """Computes DOLP/AOLP/normals etc. for further polarimetric processing
     """
 
@@ -564,7 +638,15 @@ def action_polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, 
 
 
 
-def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:bool ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
+@click.option('--wassdir', type=str, default="./output", help="WASS output directory (default=./output)"  )
+@click.option('--outputdir', type=str, default="./", help="Where to store the output images (if into-nc is false) (default='./')"  )
+@click.option('--upscalefactor', type=int, default=1, help="Upscale factor (default=1)" )
+@click.option('--numframes', type=int, default=-1, help="Number of frames to process (-1 to process all the frames, default)" )
+@click.option('--into-nc', is_flag=True, default=True, help="Visibility map is stored inside the nc file" )
+def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc:bool ):
     """Computes sea surface radiance with respect to the elevation grid
     """
     print(f"Setting Cam{cam} as reference")
@@ -586,6 +668,7 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
             YY = cv.pyrUp( YY )
         ZZ = ds["Z"]
 
+        N = numframes
 
         if N<=0:
             N = ZZ.shape[0]
@@ -663,7 +746,15 @@ def action_radiance( ncfile, cam, wassdir, outputdir, upscalefactor, N, into_nc:
 
 
 
-def action_bgimage( ncfile, cam, filtersize ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
+@click.option('--filtersize', type=int, default=2000, help="Filter size for time-average bg image generation (default=2000)" )
+def bgimage( ncfile, cam:int, filtersize:int ):
+    """Applies a large (time-wise) box filter on variable /radiance_cam%d (where %d is the chosen camera number)
+       
+       output is stored on variable /radiance_bgimage_cam%d
+    """
 
     configure_nc_cache(16)
     radiance_variable_name = "radiance_cam%d"%cam
@@ -724,7 +815,16 @@ def action_bgimage( ncfile, cam, filtersize ):
 
 
 
-def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False ):
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
+@click.option('--threshold-val', type=float, default=0.35, help="Radiance threshold value (default=0.35)" )
+@click.option('--use-vats', is_flag=True, default=False, help="Use VATS for automatic thresholding (default=False)" )
+def radiance_threshold( ncfile, cam, threshold_val, use_vats ):
+    """Applies a threshold on variable /radiance_cam%d (where %d is the chosen camera number)
+       
+       output is stored on binary variable /radiance_thresholded_cam%d
+    """
 
     radiance_variable ="radiance_cam%d"%cam 
     radiance_bg_variable = "radiance_bgimage_cam%d"%cam
@@ -735,11 +835,11 @@ def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False )
     with Dataset(ncfile, "r+") as ds:
 
         if not radiance_bg_variable in ds.variables:
-            print(f"/{radiance_bg_variable} not found in ncfile. Run bgimage action first.")
+            print(f"/{radiance_bg_variable} not found in ncfile. Run bgimage command first.")
             sys.exit(-1)
 
         if not radiance_variable in ds.variables:
-            print(f"/{radiance_variable} not found in ncfile. Run radiance action first.")
+            print(f"/{radiance_variable} not found in ncfile. Run radiance command first.")
             sys.exit(-1)
         
         radiance_bg = ds[radiance_bg_variable]
@@ -785,85 +885,63 @@ def action_radiance_threshold( ncfile, cam, threshold_val=0.35, use_vats=False )
 
 
 
-def get_action_description():
-    return """
-    Post-processing operations:
-    ----------------
-        info: prints some info about the specified nc file
-        visibilitymap: compute visibility map for each grid point 
-        radiance: generate surface grid radiance texture
-        radiance-threshold: creates a binary mask based on the radiance intensity 
-        bgimage: computes the time averaged background image for each radiance image in the sequence 
-        psetup: setup polarimetric data for further processing
-        spectrum: plots frequency spectrum
-        setfps: overwrites sequence FPS and recomputes times accordingly
-        lowpass: applies a forward-backward 8th order Butterworth lowpass filter (time-wise)
-        highpass: applies a forward-backward 8th order Butterworth highpass filter (time-wise)
-                 (use the --cutoff argument to set the cut-off frequency in Hz)
-
-
-    Note 
-    ----------------
-        This program is still under active development. You can
-        expect severe changes between different versions. Use it
-        wisely.
-        """
-
 
 def wasspost_main():
-    parser = argparse.ArgumentParser(
-                        prog='wasspost',
-                        description='WASS NetCDF post processing tool v.'+VERSION,
-                        epilog=get_action_description(),
-                        formatter_class=RawDescriptionHelpFormatter )
-    parser.add_argument('action', choices=['info','visibilitymap','radiance', 'bgimage', 'radiance-threshold', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
-    parser.add_argument('ncfile', help='The NetCDF file to post-process, produced by WASS or WASSfast')
-    parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
-    parser.add_argument('--wass-output-dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
-    parser.add_argument('--output-dir', "-o", type=str, help="Output directory", default="." )
-    parser.add_argument('--radiance-upscale', type=int, help="Upscale factor", default="1" )
-    parser.add_argument('--bgimage-filter-size', type=int, help="Filter size for time-average bg image generation", default="2000" )
-    parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
-    parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
-    parser.add_argument('--filter-variable', type=str, help="nc variable to filter", default="Z" )
-    parser.add_argument('--num-frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
-    parser.add_argument('--assume-yes', action=argparse.BooleanOptionalAction, help="Assume yes if a question is asked" )
-    parser.add_argument('--into-nc', action=argparse.BooleanOptionalAction, help="Insert data into NC file instead of producing images" )
-    parser.add_argument('--overwrite', action=argparse.BooleanOptionalAction, help="Overwrite data when filtering" )
-    args = parser.parse_args()
-
-
-    # Global checks
-    if not os.path.exists( args.output_dir ):
-        print(f"Output dir {args.output_dir} does not exists, aborting")
-        return 
-
-    # Action selection
-    if args.action=="info":
-        action_info( args.ncfile )
-    elif args.action=="radiance":
-        action_radiance( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.radiance_upscale, args.num_frames, into_nc=args.into_nc )
-    elif args.action=="radiance-threshold":
-        action_radiance_threshold( args.ncfile, args.cam )
-    elif args.action=="bgimage":
-        action_bgimage( args.ncfile, args.cam, args.bgimage_filter_size )
-    elif args.action=="radiance-threshold":
-        action_bgimage( args.ncfile, args.cam )
-    elif args.action=="psetup":
-        action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
-    elif args.action=="visibilitymap":
-        action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames, into_nc=args.into_nc )
-    elif args.action=="spectrum":
-        action_spectrum( args.ncfile, args.output_dir )
-    elif args.action=="lowpass":
-        action_filter_fast( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
-    elif args.action=="highpass":
-        action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
-    elif args.action=="setfps":
-        if args.fps<=0:
-            print("Please set the desired FPS with the --fps argument")
-            sys.exit(-1)
-
-        action_setfps( args.ncfile, args.fps )
-
+    print(f"::: wasspost  :::  v {VERSION}\n" )
+    cli()
+#    parser = argparse.ArgumentParser(
+#                        prog='wasspost',
+#                        description='WASS NetCDF post processing tool v.'+VERSION,
+#                        epilog=get_action_description(),
+#                        formatter_class=RawDescriptionHelpFormatter )
+#    parser.add_argument('action', choices=['info','visibilitymap','radiance', 'bgimage', 'radiance-threshold', 'psetup', 'spectrum', 'setfps', 'lowpass', 'highpass'], help='post-processing operation to perform (see below)')
+#    parser.add_argument('ncfile', help='The NetCDF file to post-process, produced by WASS or WASSfast')
+#    parser.add_argument('--cam', choices=[0,1], type=int, help="Camera to use", default=0 )
+#    parser.add_argument('--wass-output-dir', type=str, help="WASS output directory. If specified, some data (like undistorted images) are loaded from there", default=None )
+#    parser.add_argument('--output-dir', "-o", type=str, help="Output directory", default="." )
+#    parser.add_argument('--radiance-upscale', type=int, help="Upscale factor", default="1" )
+#    parser.add_argument('--bgimage-filter-size', type=int, help="Filter size for time-average bg image generation", default="2000" )
+#    parser.add_argument('--fps', type=int, help="Sequence FPS", default="-1" )
+#    parser.add_argument('--cutoff', type=float, help="filter cutoff in Hz", default="1.0" )
+#    parser.add_argument('--filter-variable', type=str, help="nc variable to filter", default="Z" )
+#    parser.add_argument('--num-frames', "-n", type=int, help="Number for frames to process (0 to select all the available frames)", default="0" )
+#    parser.add_argument('--assume-yes', action=argparse.BooleanOptionalAction, help="Assume yes if a question is asked" )
+#    parser.add_argument('--into-nc', action=argparse.BooleanOptionalAction, help="Insert data into NC file instead of producing images" )
+#    parser.add_argument('--overwrite', action=argparse.BooleanOptionalAction, help="Overwrite data when filtering" )
+#    args = parser.parse_args()
+#
+#
+#    # Global checks
+#    if not os.path.exists( args.output_dir ):
+#        print(f"Output dir {args.output_dir} does not exists, aborting")
+#        return 
+#
+#    # Action selection
+#    if args.action=="info":
+#        action_info( args.ncfile )
+#    elif args.action=="radiance":
+#        action_radiance( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.radiance_upscale, args.num_frames, into_nc=args.into_nc )
+#    elif args.action=="radiance-threshold":
+#        action_radiance_threshold( args.ncfile, args.cam )
+#    elif args.action=="bgimage":
+#        action_bgimage( args.ncfile, args.cam, args.bgimage_filter_size )
+#    elif args.action=="radiance-threshold":
+#        action_bgimage( args.ncfile, args.cam )
+#    elif args.action=="psetup":
+#        action_polarimetric_setup( args.ncfile, args.cam, args.wass_output_dir, args.output_dir, args.num_frames )
+#    elif args.action=="visibilitymap":
+#        action_visibilitymap( args.ncfile, args.cam, args.output_dir, args.num_frames, into_nc=args.into_nc )
+#    elif args.action=="spectrum":
+#        action_spectrum( args.ncfile, args.output_dir, args.filter_variable )
+#    elif args.action=="lowpass":
+#        action_filter_fast( args.ncfile, args.cutoff, type="lowpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
+#    elif args.action=="highpass":
+#        action_filter( args.ncfile, args.cutoff, type="highpass", askconfirm=args.assume_yes is None, filter_variable=args.filter_variable, overwrite=args.overwrite  )
+#    elif args.action=="setfps":
+#        if args.fps<=0:
+#            print("Please set the desired FPS with the --fps argument")
+#            sys.exit(-1)
+#
+#        action_setfps( args.ncfile, args.fps )
+#
 
