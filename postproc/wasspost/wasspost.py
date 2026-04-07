@@ -25,6 +25,7 @@ import argparse
 from argparse import RawDescriptionHelpFormatter
 import netCDF4 as nc
 from netCDF4 import Dataset
+import h5py
 import numpy as np
 import cv2 as cv
 import os
@@ -44,11 +45,11 @@ import scipy
 import scipy.signal
 
 from .geometry import compute_slope_and_normals, compute_occlusion_mask
-from .spectra import compute_spectrum
+from .spectra import compute_spectrum, compute_3D_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 @click.group()
 def cli():
@@ -284,7 +285,8 @@ def filter( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable
 @click.argument('ncfile', type=str)
 @click.option('--filename', type=str, default="./%s_spectrum.png", help="Plot filename (default: %s_spectrum.png  where %s=variable)"  )
 @click.option('--variable', type=str, default="Z", help="Name of the variable on which to compute the spectrum (default='Z')"  )
-def spectrum( ncfile:str, filename:str, variable:str ):
+@click.option('--outfile', type=str, default="spec.hdf5", help="Where to write the computed spectrum (default='spec.hdf5')"  )
+def spectrum( ncfile:str, filename:str, variable:str, outfile:str ):
     """Computes and plots frequency spectrum
     """
     configure_nc_cache(32)
@@ -305,10 +307,48 @@ def spectrum( ncfile:str, filename:str, variable:str ):
             sys.exit(-1)
 
         print("Computing frequency spectrum...")
-        f, S, _ = compute_spectrum(ZZ, dt, scale=1/1000 ) # wass nc files are in mm.
-        plot_spectrum(f, S, variable, filename%variable)
+        freq, S, _ = compute_spectrum(ZZ, dt, scale=1/1000 ) # wass nc files are in mm.
+        plot_spectrum(freq, S, variable, filename%variable)
+
+    with h5py.File(outfile, "w") as f:
+        Sds = f.create_dataset("S", data=S )
+        Sds.attrs["ncfile"] = ncfile
+        Sds.attrs["dt"] = dt
+        Sds.attrs["variable"] = variable
+        f.create_dataset("f", data=freq )
 
 
+
+@cli.command()
+@click.argument('ncfile', type=str)
+@click.option('--variable', type=str, default="Z", help="Name of the variable on which to compute the spectrum (default='Z')"  )
+@click.option('--outfile', type=str, default="spec3d.hdf5", help="Where to write the computed spectrum (default='spec3d.hdf5')"  )
+@click.option('--segments', type=int, default=8, help="Number of overlapping segments for Dwelch' spectrum (default=8)"  )
+def spectrum3D( ncfile:str, variable:str, outfile:str, segments:int ):
+    """Computes the 3D wavenumber-frequency spectrum of a variable
+    """
+    configure_nc_cache(32)
+
+    with Dataset( ncfile, "r") as ds:
+        
+        XX,YY,du = get_grid( ds )
+        dt = ds["time"][1].item(0) - ds["time"][0].item(0)
+
+        if dt==0:
+            print("Invalid time delta. Please fix sequence FPS first")
+            sys.exit(-1)
+
+        print(f"Computing 3D spectrum on variable {variable}")
+        S, KX, KY, freq = compute_3D_spectrum( ds[variable], du, dt, segments, 1/1000.0 )
+
+    with h5py.File(outfile, "w") as f:
+        Sds = f.create_dataset("S", data=S )
+        Sds.attrs["ncfile"] = ncfile
+        Sds.attrs["dt"] = dt
+        Sds.attrs["variable"] = variable
+        f.create_dataset("KX", data=KX )
+        f.create_dataset("KY", data=KY )
+        f.create_dataset("f", data=freq )
 
 
 @cli.command()
@@ -743,6 +783,53 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc
             #radiance = np.reshape( radiance, ZZ_data.shape ) 
             #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), radiance )
         
+
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--variable', type=str, default="Z", help="Name of the variable to filter(default='Z')"  )
+def zeromean( ncfile, variable:str ):
+    """Subtracts the (time-wise) mean to the specified variable
+    """
+
+
+    with h5py.File(ncfile, 'r') as f:
+        z_var = f[variable]
+
+        mean_accum = np.zeros( (z_var.shape[1], z_var.shape[2]), dtype=float )
+        
+        chunks = list(z_var.iter_chunks())
+        
+        print(f"Computing {variable} mean along time axis...")
+        for chunk_slice in tqdm(chunks, desc="Averaging data chunks"):
+            # 1. Extract the spatial slices from the tuple
+            x_slice = chunk_slice[1]
+            y_slice = chunk_slice[2]
+            
+            mean_accum[ x_slice, y_slice ] += np.sum( z_var[chunk_slice], axis=0)  
+
+        mean_accum = mean_accum / float(z_var.shape[0])
+
+#    f, ax0 = plt.subplots( figsize=(10,10) )
+#    I = ax0.imshow( mean_accum )
+#    f.colorbar(I, ax=ax0)
+#    f.savefig( "mean.png")
+#    plt.close()
+
+
+    with h5py.File(ncfile, 'r+') as f:
+        z_var = f[variable]
+            
+        chunks = list(z_var.iter_chunks())
+        
+        print(f"Overwriting {variable} data...")
+        for chunk_slice in tqdm(chunks, desc="Overwriting data chunks"):
+            x_slice = chunk_slice[1]
+            y_slice = chunk_slice[2]
+            
+            local_mean = mean_accum[x_slice, y_slice]
+            chunk_data = np.array(z_var[chunk_slice]) - local_mean
+            z_var[chunk_slice] = chunk_data
+
 
 
 
