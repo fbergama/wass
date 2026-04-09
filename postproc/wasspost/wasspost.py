@@ -49,7 +49,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="1.1.0"
+VERSION="1.1.1"
 
 @click.group()
 def cli():
@@ -483,7 +483,7 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
 
 
     BATCH_SIZE = 8
-    chunk_ids = list(range(N if numframes==0 else numframes))
+    chunk_ids = list(range(N if numframes==-1 else numframes))
 
     batches = [chunk_ids[i:i + BATCH_SIZE] for i in range(0, len(chunk_ids), BATCH_SIZE )]
     r = thread_map(_task, batches, max_workers=n_threads )
