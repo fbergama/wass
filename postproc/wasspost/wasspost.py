@@ -49,7 +49,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="1.1.1"
+VERSION="1.1.3"
 
 @click.group()
 def cli():
@@ -286,7 +286,9 @@ def filter( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable
 @click.option('--filename', type=str, default="./%s_spectrum.png", help="Plot filename (default: %s_spectrum.png  where %s=variable)"  )
 @click.option('--variable', type=str, default="Z", help="Name of the variable on which to compute the spectrum (default='Z')"  )
 @click.option('--outfile', type=str, default="spec.hdf5", help="Where to write the computed spectrum (default='spec.hdf5')"  )
-def spectrum( ncfile:str, filename:str, variable:str, outfile:str ):
+@click.option('--nperseg', type=int, default="512", help="length of each segment in scipy.signal.csd (default=512)"  )
+@click.option('--rangespan', type=int, default="5", help="range around the central point where to sample the timeserie (default=5)"  )
+def spectrum( ncfile:str, filename:str, variable:str, outfile:str, nperseg:int, rangespan:int ):
     """Computes and plots frequency spectrum
     """
     configure_nc_cache(32)
@@ -307,7 +309,25 @@ def spectrum( ncfile:str, filename:str, variable:str, outfile:str ):
             sys.exit(-1)
 
         print("Computing frequency spectrum...")
-        freq, S, _ = compute_spectrum(ZZ, dt, scale=1/1000 ) # wass nc files are in mm.
+        freq, S, _ = compute_spectrum(ZZ, dt, nperseg=nperseg, rangespan=rangespan, scale=1/1000 ) # wass nc files are in mm.
+
+        print("\n---- Spectrum statistics: ")
+        dFreq = np.gradient( freq )
+        m0 = np.sum( S*dFreq )
+        m1 = np.sum( freq*S*dFreq )
+        Hm0 = 4.0 * np.sqrt( m0 )
+        print("                Hm0: %3.3f"%Hm0)
+
+        # Peak frequency
+        pp = freq[np.argmax( S )]
+        print("Peak frequency (Hz): %3.3f"%pp )
+        print("    Peak period (s): %3.3f"%(1.0/pp) )
+
+        # Average Period Tm01
+        Tm01 = m0/m1
+        print("               Tm01: %3.3f"%Tm01)
+        print("----------------------------")
+
         plot_spectrum(freq, S, variable, filename%variable)
 
     with h5py.File(outfile, "w") as f:
@@ -315,6 +335,10 @@ def spectrum( ncfile:str, filename:str, variable:str, outfile:str ):
         Sds.attrs["ncfile"] = ncfile
         Sds.attrs["dt"] = dt
         Sds.attrs["variable"] = variable
+        Sds.attrs["Hm0"] = Hm0
+        Sds.attrs["PeakFreq"] = pp
+        Sds.attrs["PeakPeriod"] = (1.7/pp)
+        Sds.attrs["Tm01"] = Tm01
         f.create_dataset("f", data=freq )
 
 
@@ -685,8 +709,9 @@ def polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numfram
 @click.option('--outputdir', type=str, default="./", help="Where to store the output images (if into-nc is false) (default='./')"  )
 @click.option('--upscalefactor', type=int, default=1, help="Upscale factor (default=1)" )
 @click.option('--numframes', type=int, default=-1, help="Number of frames to process (-1 to process all the frames, default)" )
+@click.option('--zvariable', type=str, default="Z", help="Variable containing the surface elevation data (default=Z)" )
 @click.option('--into-nc', is_flag=True, default=True, help="Visibility map is stored inside the nc file" )
-def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc:bool ):
+def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, zvariable, into_nc:bool ):
     """Computes sea surface radiance with respect to the elevation grid
     """
     print(f"Setting Cam{cam} as reference")
@@ -694,6 +719,8 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc
         print(f"Images will be loaded from: {wassdir}")
 
     configure_nc_cache(64)
+
+    print(f"Radiance will be computed from elevation stored in /{zvariable}")
 
     with Dataset( ncfile, "r+" if into_nc else "r" ) as ds:
 
@@ -706,7 +733,7 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc
             XX = cv.pyrUp( XX )
         for _ in range(upscalefactor-1):
             YY = cv.pyrUp( YY )
-        ZZ = ds["Z"]
+        ZZ = ds[zvariable]
 
         N = numframes
 
@@ -721,7 +748,7 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, into_nc
                 radiance_dataset = ds[radiance_variable_name]
                 print("Data will be inserted in variable %s inside nc file"%radiance_variable_name )
             except IndexError:
-                radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
+                radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds[zvariable].chunking() )
                 print("%s variable created in NCfile"%radiance_variable_name )
         # ----------------------
 
