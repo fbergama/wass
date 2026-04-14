@@ -20,6 +20,7 @@
 #  - Filippo Bergamasco                                                           #
 #                                                                                 #
 ###################################################################################
+
 import click
 import argparse
 from argparse import RawDescriptionHelpFormatter
@@ -49,7 +50,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="1.1.3"
+VERSION="1.2.0"
 
 @click.group()
 def cli():
@@ -115,6 +116,34 @@ def info( ncfile ):
                 S += "    %s = %s\n"%(a,ds[g].getncattr(a))
 
         print(S)
+
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.argument('srcvar', type=str  )
+@click.argument('dstvar', type=str  )
+def renamevar( ncfile, srcvar, dstvar ):
+    """Rename a variable in ncfile
+
+        NCFILE: input NetCDF file
+        SRCVAR: source variable name
+        DSTVAR: destination variable name
+
+    """
+
+    with Dataset( ncfile, "r+") as ds:
+
+        if not srcvar in ds.variables:
+            print(f"{srcvar} not in ncfile, aborting.")
+            sys.exit(-1)
+
+        if dstvar in ds.variables:
+            print(f"{dstvar} already exists, aborting.")
+            sys.exit(-1)
+
+        print(f" Renaming {srcvar} -> {dstvar}")
+        ds.renameVariable( srcvar, dstvar )
+        print("done")
+
 
 
 @cli.command()
