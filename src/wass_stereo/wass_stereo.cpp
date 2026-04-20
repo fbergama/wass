@@ -742,7 +742,7 @@ inline cv::Mat clean_and_convert_disparity( const cv::Mat disp, const int mindis
 INCFG_REQUIRE( int, MIN_DISPARITY, 1, "Minimum disparity allowed (in px)")
 INCFG_REQUIRE( int, MAX_DISPARITY, 640, "Maximum disparity allowed")
 INCFG_REQUIRE( int, WINSIZE, 13, "Stereo match window size")
-INCFG_REQUIRE( double, DENSE_SCALE, 1.0, "Image resize before dense stereo")
+INCFG_REQUIRE( double, DENSE_SCALE, 1.0, "Image resize along epipolar lines before dense stereo")
 
 INCFG_REQUIRE( int, DISPARITY_OFFSET, 0, "Offset in pixel to be applied. Positive: move right image to the right. Negative: move right image to the left")
 
@@ -784,8 +784,17 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
 
     cv::Mat left_input;
     cv::Mat right_input;
-    cv::resize( env.right_crop, right_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
-    cv::resize( env.left_crop, left_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
+
+    if( scale>1.0 )
+    {
+        cv::resize( env.right_crop, right_input, cv::Size(),scale,1.0,cv::INTER_CUBIC);
+        cv::resize( env.left_crop, left_input, cv::Size(),scale,1.0,cv::INTER_CUBIC);
+    } else  if( scale<1.0 ) 
+    {
+        cv::resize( env.right_crop, right_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
+        cv::resize( env.left_crop, left_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
+    }
+    LOGI << "Dense-stereo input resize: " << env.right_crop.size() << " -> " << right_input.size() << std::endl;
 
     // we have to pad left and right images to numberOfDisparities rows to avoid opencv dense stereo bug
 
