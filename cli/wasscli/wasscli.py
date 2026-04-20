@@ -35,7 +35,7 @@ from InquirerPy.validator import Validator, ValidationError
 
 colorama.init()
 
-VERSION = "0.1.11"
+VERSION = "0.1.12"
 
 
 WASS_PIPELINE = {
@@ -435,6 +435,8 @@ def wasscli_main():
             do_autocalibrate()
         elif answers["wass_step"] == "Stereo":
             do_stereo()
+            print("Stereo completed, bye.")
+            return 0
         elif answers["wass_step"] == "Set number of parallel workers":
 
             print("Current number of workers: %d"%NUM_PARALLEL_PROCESSES )
