@@ -50,7 +50,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum
 from .plotting import plot_spectrum
 
 
-VERSION="1.2.0"
+VERSION="1.3.0"
 
 @click.group()
 def cli():
@@ -467,7 +467,17 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
             except IndexError:
                 visibility_dataset = ds.createVariable(visibility_variable_name, datatype="u1", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
                 print("%s variable created in NCfile"%visibility_variable_name )
-        # ----------------------
+
+
+            # check if incident angle dataset exists
+            incidentang_variable_name = "/incident_angles_cam%d"%cam
+            try:
+                incidentang_dataset = ds[incidentang_variable_name]
+                print("Incident angles will be inserted in variable %s inside nc file"%incidentang_variable_name )
+            except IndexError:
+                incidentang_dataset = ds.createVariable(incidentang_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
+                print("%s variable created in NCfile"%incidentang_variable_name )
+           # ----------------------
 
 
     configure_nc_cache(16)
@@ -480,9 +490,10 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
                 ZZ = ds["Z"]
                 ZZ_data = np.array( ZZ[batch,:,:] )/1000.0
 
-        tqdm.write("Batch loaded, processing...")
+        #tqdm.write("Batch loaded, processing...")
 
         occlusion_masks = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2]), dtype=np.uint8 )
+        incident_angles_batch = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2]), dtype=np.float32 )
         occlusion_perc = np.zeros( len(batch))
 
         for ii in range(len(batch)):
@@ -493,25 +504,22 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
             ray_z_g = ray_z_g[:3, :]
             ray_z_g = ray_z_g / np.linalg.norm( ray_z_g, axis=0 )  # Rays_z in grid reference system
 
+            # Compute incident angles
             _, Nfield = compute_slope_and_normals( XX, YY, ZZ_data[ii,...] )
             incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
             incident_angles = np.reshape( incident_angles, XX.shape )
+            incident_angles_batch[ii, ...] = incident_angles
 
-            #plt.figure( figsize=(10,10) )
-            #plt.imshow( incident_angles, cmap='jet', vmin=0, vmax=90 )
-            #plt.colorbar()
-            #plt.title("Incident angles (deg)")
-            #plt.tight_layout()
-            #plt.savefig( os.path.join( outputdir,"%05d_incident_angles.png"%idx ) )
-            #plt.close()
 
             # Compute occlusion mask
             ray_z_g_g = np.transpose( np.reshape(-ray_z_g, (3,XX.shape[0],XX.shape[1])), (1,2,0))
             occlusion_mask = compute_occlusion_mask( ZZ_data[ii,...]/dx, ray_z_g_g, invert_y_axis=False )
             del ray_z_g_g
 
+
             #normal_mask = np.zeros_like( occlusion_mask )
             #cv.imwrite( os.path.join(outputdir,"%08d_normal_mask_cam%01d.png"%(idx,cam)), normal_mask*255 )
+
 
             # consider occluded also points with incident angles > 88 deg
             occlusion_mask[ incident_angles>=88 ] = 1
@@ -525,12 +533,21 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
             if not into_nc:
                 cv.imwrite( os.path.join(outputdir,"%08d_occlusion_mask_cam%01d.png"%(batch[ii],cam)), occlusion_mask*255 )
 
+                plt.figure( figsize=(10,10) )
+                plt.imshow( incident_angles, cmap='jet', vmin=0, vmax=90 )
+                plt.colorbar()
+                plt.title("Incident angles (deg)")
+                plt.tight_layout()
+                plt.savefig( os.path.join( outputdir,"%05d_incident_angles.png"%idx ) )
+                plt.close()
+
         # batch processing complete, store the data into nc file
-        tqdm.write(f"batch process complete, avg. occlusion {np.mean(occlusion_perc)}%")
+        tqdm.write(f"batch process complete, avg. occlusion {np.mean(occlusion_perc):2.2f}%")
         if into_nc:
             with nc_lock:
                 with Dataset( ncfile, "r+" ) as ds:
                     visibility_dataset[ batch, ... ] = occlusion_masks
+                    incidentang_dataset[ batch, ... ] = incident_angles_batch
     
             tqdm.write("batch stored.")
 

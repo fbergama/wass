@@ -29,6 +29,8 @@ def compute_spectrum( data, dt, nperseg=512, rangespan=5, scale=1.0 ):
     valid_samples_i = range( halfgridsize_i-rangespan, halfgridsize_i+rangespan+1 )
     valid_samples_j = range( halfgridsize_j-rangespan, halfgridsize_j+rangespan+1 )
 
+    print(f"averaging frequency spectrum on grid points (row,cols) [{halfgridsize_i-rangespan} ... {halfgridsize_i+rangespan}], [{halfgridsize_j-rangespan} ... {halfgridsize_j+rangespan}]")
+    print(f"FFT size: {nperseg}")
 
     timeserie = scale * data[:,halfgridsize_i,halfgridsize_j]
     timeserie = timeserie - np.mean(timeserie)
