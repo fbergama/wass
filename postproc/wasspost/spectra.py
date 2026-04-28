@@ -173,44 +173,73 @@ def compute_3D_spectrum( data, du:float, dt:float, segments:int=8, datascale:flo
 
 
 
+class Spatial2DButterworth:
+    def __init__( self, W, H, du, cutoff_fs, order ):
+        fx = fftshift(fftfreq(W, d=du))
+        fy = fftshift(fftfreq(H, d=du))
+        
+        # Create a 2D radial frequency grid
+        FX, FY = np.meshgrid(fy, fx) # Note: meshgrid uses (y, x) ordering by default
+        R = np.sqrt(FX**2 + FY**2)
+        
+        # Construct the 2D Butterworth transfer function
+        # Formula: H(R) = 1 / sqrt(1 + (R / f_c)^(2n))
+        # To avoid division by zero at the DC component, we add a tiny epsilon if cutoff_fs is 0
+        self.butterworth_filter = 1.0 / np.sqrt(1.0 + (R / cutoff_fs)**(2 * order))
 
-def filter_2d_butterworth(surface, du, cutoff_fs, order ):
-    """
-    Applies a radially symmetric 2D Butterworth lowpass filter to a surface.
-    
-    Parameters:
-    - surface: 2D numpy array (W x H) representing the wave elevation or normal field.
-    - du: Spatial resolution in meters/pixel.
-    - cutoff_fs: Spatial cutoff frequency in cycles/meter.
-    - order: Filter order (4th order spatial mimics 8th order temporal).
-    
-    Returns:
-    - filtered_surface: 2D numpy array of the filtered surface (real-valued).
-    """
-    W, H = surface.shape
-    
-    # 1. Transform the surface to the 2D frequency domain
-    F_surface = fft2(surface)
-    F_surface_shifted = fftshift(F_surface) # Move zero-frequency (DC) to the center
-    
-    # 2. Create the 1D frequency axes (cycles/meter)
-    fx = fftshift(fftfreq(W, d=du))
-    fy = fftshift(fftfreq(H, d=du))
-    
-    # 3. Create a 2D radial frequency grid
-    FX, FY = np.meshgrid(fy, fx) # Note: meshgrid uses (y, x) ordering by default
-    R = np.sqrt(FX**2 + FY**2)
-    
-    # 4. Construct the 2D Butterworth transfer function
-    # Formula: H(R) = 1 / sqrt(1 + (R / f_c)^(2n))
-    # To avoid division by zero at the DC component, we add a tiny epsilon if cutoff_fs is 0
-    butterworth_filter = 1.0 / np.sqrt(1.0 + (R / cutoff_fs)**(2 * order))
-    
-    # 5. Apply the filter element-wise in the frequency domain
-    F_filtered_shifted = F_surface_shifted * butterworth_filter
-    
-    # 6. Transform back to the spatial domain
-    F_filtered = ifftshift(F_filtered_shifted)
-    filtered_surface = np.real(ifft2(F_filtered))
-    
-    return filtered_surface
+    def apply( self, surface ):
+        # transform the surface to the 2D frequency domain
+        F_surface = fft2(surface)
+        F_surface_shifted = fftshift(F_surface) # Move zero-frequency (DC) to the center
+
+        # apply the filter
+        F_filtered_shifted = F_surface_shifted * self.butterworth_filter
+        
+        # transform back to the spatial domain
+        F_filtered = ifftshift(F_filtered_shifted)
+        filtered_surface = np.real(ifft2(F_filtered))
+        
+        return filtered_surface
+
+
+
+#def filter_2d_butterworth(surface, du, cutoff_fs, order ):
+#    """
+#    Applies a radially symmetric 2D Butterworth lowpass filter to a surface.
+#    
+#    Parameters:
+#    - surface: 2D numpy array (W x H) representing the wave elevation or normal field.
+#    - du: Spatial resolution in meters/pixel.
+#    - cutoff_fs: Spatial cutoff frequency in cycles/meter.
+#    - order: Filter order (4th order spatial mimics 8th order temporal).
+#    
+#    Returns:
+#    - filtered_surface: 2D numpy array of the filtered surface (real-valued).
+#    """
+#    W, H = surface.shape
+#    
+#    # 1. Transform the surface to the 2D frequency domain
+#    F_surface = fft2(surface)
+#    F_surface_shifted = fftshift(F_surface) # Move zero-frequency (DC) to the center
+#    
+#    # 2. Create the 1D frequency axes (cycles/meter)
+#    fx = fftshift(fftfreq(W, d=du))
+#    fy = fftshift(fftfreq(H, d=du))
+#    
+#    # 3. Create a 2D radial frequency grid
+#    FX, FY = np.meshgrid(fy, fx) # Note: meshgrid uses (y, x) ordering by default
+#    R = np.sqrt(FX**2 + FY**2)
+#    
+#    # 4. Construct the 2D Butterworth transfer function
+#    # Formula: H(R) = 1 / sqrt(1 + (R / f_c)^(2n))
+#    # To avoid division by zero at the DC component, we add a tiny epsilon if cutoff_fs is 0
+#    butterworth_filter = 1.0 / np.sqrt(1.0 + (R / cutoff_fs)**(2 * order))
+#    
+#    # 5. Apply the filter element-wise in the frequency domain
+#    F_filtered_shifted = F_surface_shifted * butterworth_filter
+#    
+#    # 6. Transform back to the spatial domain
+#    F_filtered = ifftshift(F_filtered_shifted)
+#    filtered_surface = np.real(ifft2(F_filtered))
+#    
+#    return filtered_surface

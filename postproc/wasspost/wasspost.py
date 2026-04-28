@@ -46,11 +46,11 @@ import scipy
 import scipy.signal
 
 from .geometry import compute_slope_and_normals, compute_occlusion_mask
-from .spectra import compute_spectrum, compute_3D_spectrum, filter_2d_butterworth
+from .spectra import compute_spectrum, compute_3D_spectrum, Spatial2DButterworth
 from .plotting import plot_spectrum
 
 
-VERSION="1.4.0"
+VERSION="1.4.1"
 
 @click.group()
 def cli():
@@ -310,26 +310,59 @@ def filter( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable
         print("All done.")
 
 
+
 @cli.command()
 @click.argument('ncfile', type=str  )
 @click.option('--cutoff-in-hz', type=float, default=1.0, help="filter cutoff in Hz (default=1.0)" )
 @click.option('--filter-variable', type=str, default="Z_filtered", help="Name of the variable to filter (default='Z_filtered')"  )
-def spatial_lowpass( ncfile:str, cutoff_in_hz:float, filter_variable ):
-    configure_nc_cache(32)
+@click.option('--n_threads', type=int, default=8, help="Number of parallel threads to use (default=8)"  )
+def spatial_lowpass( ncfile:str, cutoff_in_hz:float, filter_variable, n_threads ):
+    """ Applies a 4th order spatial lowpass Butterworth filter on a nc variable.
+        Variable is overwritten
+    """
+    configure_nc_cache(16)
 
     cutoff_wavenumber = 2.0 * np.pi * cutoff_in_hz**2 / 9.81
     print(f"Applying 2D lowpass Butterworth filter with spatial cutoff {cutoff_wavenumber:3.5f} cycles/meters, corresponding to {cutoff_in_hz} Hz")
     print(f" In/Out vars: {filter_variable}->{filter_variable}")
 
-    with Dataset( ncfile, "r+" ) as ds:
-
+    # read grid first to initialize the filter
+    with Dataset( ncfile, "r" ) as ds:
         XX,YY,du = get_grid( ds )
+        W, H = XX.shape
         N = ds[filter_variable].shape[0]
+        del XX, YY
 
-        for IDX in trange(N):
-            Z = np.array( ds[filter_variable][IDX,...] )
-            Zfilt = filter_2d_butterworth( Z, du, cutoff_fs=cutoff_wavenumber, order=4 )
-            ds[filter_variable][IDX,...] = Zfilt
+    filter = Spatial2DButterworth( W, H, du, cutoff_wavenumber, order=4 )
+
+    nc_lock = threading.Lock()
+
+
+    def _task( batch ):
+
+        # read batch of surfaces
+        with nc_lock:
+            with Dataset( ncfile, "r" ) as ds:
+                surfaces = np.array( ds[filter_variable][batch,...] )
+
+        # apply the filter for every surface in the batch
+        for ii in range(len(batch)):
+            surface = surfaces[ii,...]
+            surface_filtered = filter.apply( surface )
+            surfaces[ii,...] = surface_filtered
+
+        # batch processing complete, store the data into nc file
+        with nc_lock:
+            with Dataset( ncfile, "r+" ) as ds:
+                ds[filter_variable][ batch, ... ] = surfaces
+
+
+    BATCH_SIZE = 16
+    chunk_ids = list(range(N))
+
+    batches = [chunk_ids[i:i + BATCH_SIZE] for i in range(0, len(chunk_ids), BATCH_SIZE )]
+    r = thread_map(_task, batches, max_workers=n_threads )
+
 
 
 
