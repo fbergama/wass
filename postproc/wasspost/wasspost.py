@@ -46,11 +46,11 @@ import scipy
 import scipy.signal
 
 from .geometry import compute_slope_and_normals, compute_occlusion_mask
-from .spectra import compute_spectrum, compute_3D_spectrum
+from .spectra import compute_spectrum, compute_3D_spectrum, filter_2d_butterworth
 from .plotting import plot_spectrum
 
 
-VERSION="1.3.0"
+VERSION="1.4.0"
 
 @click.group()
 def cli():
@@ -308,6 +308,30 @@ def filter( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_variable
 
 
         print("All done.")
+
+
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--cutoff-in-hz', type=float, default=1.0, help="filter cutoff in Hz (default=1.0)" )
+@click.option('--filter-variable', type=str, default="Z_filtered", help="Name of the variable to filter (default='Z_filtered')"  )
+def spatial_lowpass( ncfile:str, cutoff_in_hz:float, filter_variable ):
+    configure_nc_cache(32)
+
+    cutoff_wavenumber = 2.0 * np.pi * cutoff_in_hz**2 / 9.81
+    print(f"Applying 2D lowpass Butterworth filter with spatial cutoff {cutoff_wavenumber:3.5f} cycles/meters, corresponding to {cutoff_in_hz} Hz")
+    print(f" In/Out vars: {filter_variable}->{filter_variable}")
+
+    with Dataset( ncfile, "r+" ) as ds:
+
+        XX,YY,du = get_grid( ds )
+        N = ds[filter_variable].shape[0]
+
+        for IDX in trange(N):
+            Z = np.array( ds[filter_variable][IDX,...] )
+            Zfilt = filter_2d_butterworth( Z, du, cutoff_fs=cutoff_wavenumber, order=4 )
+            ds[filter_variable][IDX,...] = Zfilt
+
+
 
 
 @cli.command()
