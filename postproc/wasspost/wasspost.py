@@ -50,7 +50,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum, Spatial2DButterworth
 from .plotting import plot_spectrum
 
 
-VERSION="1.4.1"
+VERSION="1.4.2"
 
 @click.group()
 def cli():
@@ -239,6 +239,10 @@ def filter_fast( ncfile:str, cutoff:float, type:str, askconfirm:bool, filter_var
         with ProgressBar():
             ds_temp.to_netcdf(ncfile, mode='a')
 
+    with Dataset( ncfile, "r+" ) as ds:
+        ds[ filter_output ].setncattr("frequency_filter_cutoff", cutoff )
+
+
     print("Cleaning up...")
     if os.path.exists(temp_file):
         os.remove(temp_file)
@@ -363,7 +367,8 @@ def spatial_lowpass( ncfile:str, cutoff_in_hz:float, filter_variable, n_threads 
     batches = [chunk_ids[i:i + BATCH_SIZE] for i in range(0, len(chunk_ids), BATCH_SIZE )]
     r = thread_map(_task, batches, max_workers=n_threads )
 
-
+    with Dataset( ncfile, "r+" ) as ds:
+        ds[ filter_variable ].setncattr("spatial_filter_cutoff", cutoff_wavenumber )
 
 
 
@@ -912,11 +917,51 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, zvariab
             #radiance[ inside_mask]  = I[ pyi[inside_mask], pxi[inside_mask] ]
             #radiance = np.reshape( radiance, ZZ_data.shape ) 
             #cv.imwrite( os.path.join(outputdir,"%05d.png"%idx), radiance )
-        
+
+
 
 @cli.command()
 @click.argument('ncfile', type=str  )
-@click.option('--variable', type=str, default="Z", help="Name of the variable to filter(default='Z')"  )
+@click.option('--variable', type=str, default="Z", help="Name of the variable to filter (default='Z')"  )
+@click.option('--minval', type=float, default="0.0", help="Minimum value (default=0.0)"  )
+@click.option('--maxval', type=float, default="1.0", help="Maximum value (default=1.0)"  )
+def clip( ncfile, variable:str, minval:float, maxval:float ):
+    """Clips variable values to range minval...maxval
+    """
+
+    print(f"Clipping {variable} in range [{minval} ... {maxval}]")
+
+    with h5py.File(ncfile, 'r+') as f:
+        z_var = f[variable]
+            
+        chunks = list(z_var.iter_chunks())
+
+        global_min = +np.inf
+        global_max = -np.inf
+        
+        for chunk_slice in tqdm(chunks, desc="Overwriting data chunks"):
+            
+            chunk_data = np.clip( np.array(z_var[chunk_slice]), minval, maxval )
+
+            global_max = max( global_max, np.amax( chunk_data ) )
+            global_min = min( global_min, np.amin( chunk_data ) )
+
+            z_var[chunk_slice] = chunk_data
+
+
+    if variable == "Z":
+        print("Setting new zmin, zmax ncattr")
+        with Dataset( ncfile, "r+") as ds:
+            ds["meta"].setncattr("zmin", global_min/1000)
+            ds["meta"].setncattr("zmax", global_max/1000)
+
+
+        
+
+
+@cli.command()
+@click.argument('ncfile', type=str  )
+@click.option('--variable', type=str, default="Z", help="Name of the variable to filter (default='Z')"  )
 def zeromean( ncfile, variable:str ):
     """Subtracts the (time-wise) mean to the specified variable
     """
@@ -931,7 +976,6 @@ def zeromean( ncfile, variable:str ):
         
         print(f"Computing {variable} mean along time axis...")
         for chunk_slice in tqdm(chunks, desc="Averaging data chunks"):
-            # 1. Extract the spatial slices from the tuple
             x_slice = chunk_slice[1]
             y_slice = chunk_slice[2]
             
