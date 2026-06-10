@@ -50,7 +50,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum, Spatial2DButterworth
 from .plotting import plot_spectrum
 
 
-VERSION="1.4.2"
+VERSION="1.4.3"
 
 @click.group()
 def cli():
@@ -468,8 +468,8 @@ def spectrum3D( ncfile:str, variable:str, outfile:str, segments:int ):
 
 @cli.command()
 @click.argument('ncfile', type=str)
-@click.argument('FPS', type=int)
-def action_setfps( ncfile:str, FPS:int ):
+@click.argument('fps', type=int)
+def setfps( ncfile:str, fps:int ):
     """Overwrites the sequence FPS metadata and recomputes
        all timestamps. 
 
@@ -478,17 +478,17 @@ def action_setfps( ncfile:str, FPS:int ):
        provied during the gridding phase.
     """
 
-    if FPS<=0:
-        print("FPS must be > 0")
+    if fps<=0:
+        print("fps must be > 0")
         return
 
     with Dataset( ncfile, "r+") as ds:
-        dt = 1.0/float(FPS)
+        dt = 1.0/float(fps)
         N = ds["time"].shape[0]
         new_times = np.arange(N).astype(float)*dt
         ds["time"][:] = new_times
-        ds["/meta"].setncattr("fps", FPS)
-        print("New FPS set to ", FPS)
+        ds["/meta"].setncattr("fps", fps)
+        print("New fps set to ", fps)
 
 
 
