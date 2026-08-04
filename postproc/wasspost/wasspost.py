@@ -50,7 +50,7 @@ from .spectra import compute_spectrum, compute_3D_spectrum, Spatial2DButterworth
 from .plotting import plot_spectrum
 
 
-VERSION="1.4.3"
+VERSION="1.5.0"
 
 @click.group()
 def cli():
@@ -539,6 +539,20 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
             except IndexError:
                 incidentang_dataset = ds.createVariable(incidentang_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds["Z"].chunking() )
                 print("%s variable created in NCfile"%incidentang_variable_name )
+
+            # check if camray dataset exists
+            camray_variable_name = "/camera_rays_cam%d"%cam
+            try:
+                camray_dataset = ds[camray_variable_name]
+                print("Camera rays will be inserted in variable %s inside nc file"%camray_variable_name )
+            except IndexError:
+                if "vec3" not in ds.dimensions:
+                    print(f"Dimension 'vec3' not found. Creating with size 3.")
+                    ds.createDimension("vec3", 3)
+                    print("DONE!")
+                camray_dataset = ds.createVariable(camray_variable_name, datatype="f4", dimensions=("count","X","Y","vec3"), chunksizes=ds["Z"].chunking()+(3) )
+                print("%s variable created in NCfile"%incidentang_variable_name )
+
            # ----------------------
 
 
@@ -556,6 +570,7 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
 
         occlusion_masks = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2]), dtype=np.uint8 )
         incident_angles_batch = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2]), dtype=np.float32 )
+        camray_batch = np.zeros( (len(batch),ZZ_data.shape[1],ZZ_data.shape[2],3), dtype=np.float32 )
         occlusion_perc = np.zeros( len(batch))
 
         for ii in range(len(batch)):
@@ -571,6 +586,7 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
             incident_angles = np.rad2deg( np.acos( np.linalg.vecdot( np.reshape(Nfield, (-1,3)), (-ray_z_g).T  ) ) )
             incident_angles = np.reshape( incident_angles, XX.shape )
             incident_angles_batch[ii, ...] = incident_angles
+            camray_batch[ii, ...] = np.reshape( -ray_z_g.T, (Nfield.shape[0], Nfield.shape[1], 3) )
 
 
             # Compute occlusion mask
@@ -610,6 +626,7 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
                 with Dataset( ncfile, "r+" ) as ds:
                     visibility_dataset[ batch, ... ] = occlusion_masks
                     incidentang_dataset[ batch, ... ] = incident_angles_batch
+                    camray_dataset[ batch, ... ] = camray_batch
     
             tqdm.write("batch stored.")
 
@@ -814,14 +831,20 @@ def polarimetric_setup( ncfile:str, cam:int, wassdir:str, outputdir:str, numfram
 @click.argument('ncfile', type=str  )
 @click.option('--cam', type=int, default=0, help="Camera number (default=0)" )
 @click.option('--wassdir', type=str, default="./output", help="WASS output directory (default=./output)"  )
+@click.option('--stokes-component', type=int, default="-1", help="Stokes vector component (0,1, or 2). Use -1 to load the standard intensity image"  )
 @click.option('--outputdir', type=str, default="./", help="Where to store the output images (if into-nc is false) (default='./')"  )
 @click.option('--upscalefactor', type=int, default=1, help="Upscale factor (default=1)" )
 @click.option('--numframes', type=int, default=-1, help="Number of frames to process (-1 to process all the frames, default)" )
 @click.option('--zvariable', type=str, default="Z", help="Variable containing the surface elevation data (default=Z)" )
 @click.option('--into-nc', is_flag=True, default=True, help="Visibility map is stored inside the nc file" )
-def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, zvariable, into_nc:bool ):
+def radiance( ncfile, cam, wassdir, stokes_component, outputdir, upscalefactor, numframes, zvariable, into_nc:bool ):
     """Computes sea surface radiance with respect to the elevation grid
     """
+
+    if stokes_component > 2:
+        print(f"Invalid stokes component: valid options are 0, 1, 2 or -1")
+        return
+
     print(f"Setting Cam{cam} as reference")
     if not wassdir is None:
         print(f"Images will be loaded from: {wassdir}")
@@ -850,22 +873,35 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, zvariab
 
 
         if into_nc:
-            # check if radiance dataset exists
+            # check if dataset exists in nc file. Create it if necessary
+
             radiance_variable_name = "/radiance_cam%d"%cam
+
+            if stokes_component>=0:
+                radiance_variable_name += "_S%d"%stokes_component
+
+
             try:
                 radiance_dataset = ds[radiance_variable_name]
                 print("Data will be inserted in variable %s inside nc file"%radiance_variable_name )
             except IndexError:
                 radiance_dataset = ds.createVariable(radiance_variable_name, datatype="f4", dimensions=("count","X","Y"), chunksizes=ds[zvariable].chunking() )
                 print("%s variable created in NCfile"%radiance_variable_name )
+
         # ----------------------
 
 
         for idx in trange(N):
             I = None
+            normalization_factor = 255.0
 
             if not wassdir is None:
-                I = load_data_from_workspace( wassdir, idx, cam )
+                if stokes_component>=0:
+                    I = load_data_from_workspace( wassdir, idx, cam, "_S%d.tiff"%stokes_component, cv.IMREAD_ANYDEPTH )
+                    assert I.shape[0] > 0
+                    normalization_factor = 1.0
+                else:
+                    I = load_data_from_workspace( wassdir, idx, cam )
             else:
                 I = cv.imdecode( ds[f"cam{cam}images"][idx], cv.IMREAD_GRAYSCALE )
 
@@ -896,7 +932,7 @@ def radiance( ncfile, cam, wassdir, outputdir, upscalefactor, numframes, zvariab
             radiance = cv.remap( I, mapx, mapy, cv.INTER_LANCZOS4 )
 
             if into_nc:
-                radiance_dataset[ idx, ...] = radiance.astype(np.float32)/255.0
+                radiance_dataset[ idx, ...] = radiance.astype(np.float32)/normalization_factor
             else:
                 cv.imwrite( os.path.join(outputdir,"%08d_tx_cam%01d.png"%(idx,cam)), radiance )
 
