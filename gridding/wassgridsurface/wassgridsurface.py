@@ -17,7 +17,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 
-VERSION = "0.12.2"
+VERSION = "0.13.1"
 
 import matplotlib
 matplotlib.use('AGG')
@@ -237,7 +237,10 @@ def setup( wdir, meanplane, baseline, outdir, area_center, area_size_x, area_siz
 
 
 
-def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0, force_zero_mean=False ):
+def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="DCT", user_mask_filename=None, alg_options=None, NUM_PARALLEL_PROCESSES=1, image_id_to_save=0, force_zero_mean=False, save_input_points=False, random_seed=None ):
+
+    if random_seed==0:
+        random_seed = None
 
     gridsetup = sio.loadmat( matfile )
     XX = gridsetup["XX"]
@@ -294,12 +297,16 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         user_mask = (user_mask>0).astype(np.float32)
 
 
+    print(f"Save input points: {save_input_points}")
     print("Interpolation algorithm: "+Fore.RED+algorithm+Fore.RESET )
     print("Using %d thread(s) for reconstruction..."%NUM_PARALLEL_PROCESSES )
 
 
     # Create a dedicated interpolator for each parallel process
-    interpolators = [ IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options ) for x in range(NUM_PARALLEL_PROCESSES) ]
+    interpolators = [ IDWInterpolator( KSIZE=5, reps=1 ) if algorithm=="IDW" else DCTInterpolator( img_width=XX.shape[1], img_height=XX.shape[0], alg_options=alg_options, seed=random_seed ) for x in range(NUM_PARALLEL_PROCESSES) ]
+    for itp in interpolators:
+        if isinstance(itp, DCTInterpolator):
+            itp.save( path.join(outdir, "DCTInterpolator.toml"))
 
     nc_lock = threading.Lock()
 
@@ -311,6 +318,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
 
     def _grid_task( iteration_element ):
 
+        ZZ = None
         idx, wdir = iteration_element
         interpolator = interpolators[ idx % NUM_PARALLEL_PROCESSES ]
 
@@ -360,7 +368,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
                 fig.savefig(figfile,bbox_inches='tight')
                 plt.close()
 
-            Zi, mask = interpolator(ZZ, verbose=(NUM_PARALLEL_PROCESSES==1) )
+            Zi, mask = interpolator(np.copy(ZZ), verbose=(NUM_PARALLEL_PROCESSES==1) )
             mask *= user_mask
             Zi[ mask==0 ] = np.nan
 
@@ -518,7 +526,7 @@ def grid( wass_frames, matfile, outdir, subsample_percent=100, mf=0, algorithm="
         with nc_lock:
             outdata.add_meta_attribute("image_width", I0.shape[1] )
             outdata.add_meta_attribute("image_height", I0.shape[0] )
-            outdata.push_Z( Zi*1000, float(idx)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask, idx=idx )
+            outdata.push_Z( Zi*1000, float(idx)/float(fps) if fps>0 else 0.0, FRAME_IDX, imgjpeg, imagemask, inputpoints=ZZ if save_input_points else None, idx=idx )
 
 
         #aux = ((Zi-gridsetup["zmin"])/(gridsetup["zmax"]-gridsetup["zmin"])*255).astype(np.uint8)
@@ -647,6 +655,8 @@ def wassgridsurface_main():
     parser.add_argument("--ia", "--interpolation_algorithm", type=str, default="DCT", help='Interpolation algorithm to use. Alternatives are: "DCT", "IDW", "LinearND" ' )
     parser.add_argument("--mask", type=str, default=None, help='User supplied grid mask filename. Must be a grayscale (bw) image with the same size of the grid' )
     parser.add_argument("-z", "--force-zero-mean", action="store_true", help='Subtracts the per-grid-point average elevation from each surface' )
+    parser.add_argument("--save-input-points", action="store_true", help='Save WASS\' input points in the NetCDF file' )
+    parser.add_argument("--random-seed", type=int, default=0, help="Random seed to use for interpolators. Use 0 to pick a different seed every time. Choose a number for reproducibility" )
     parser.add_argument("--stereo_image_idx", type=int, default=0, help='Which stereo frame to store in the NetCDF, 0 or 1' )
     parser.add_argument("--dct_nfreqs", type=int, default=None, help="DCT interpolator number of frequencies" )
     parser.add_argument("--dct_regalpha", type=float, default=None, help="DCT interpolator regularizer alpha" )
@@ -765,7 +775,9 @@ def wassgridsurface_main():
                   },
               NUM_PARALLEL_PROCESSES=args.parallel,
               image_id_to_save=args.stereo_image_idx,
-              force_zero_mean=args.force_zero_mean)
+              force_zero_mean=args.force_zero_mean,
+              save_input_points=args.save_input_points,
+              random_seed=args.random_seed)
 
         print("Gridding completed.")
 

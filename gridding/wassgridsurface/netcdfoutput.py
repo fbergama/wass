@@ -92,6 +92,11 @@ class NetCDFOutput:
         self.maskZ.long_name = "Z mask over the XY grid"
         self.maskZ.field = "Z, scalar, series"
 
+        self.inputpoints = self.rootgrp.createVariable( "inputpoints", "f4", ("count","X","Y"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
+        self.inputpoints.units = "millimeter"
+        self.inputpoints.long_name = "Z mask over the XY grid"
+        self.inputpoints.field = "Z, scalar, series"
+
         self.vlen_t = self.rootgrp.createVLType(np.uint8, "vlenu8")
         self.cam0images = self.rootgrp.createVariable( "cam0images", self.vlen_t, ("count") )
         self.cam0images.long_name = "Camera0 undistorted images in JPEG format"
@@ -175,7 +180,7 @@ class NetCDFOutput:
     #         if idx%10 == 0:
     #             self.rootgrp.sync() # Flush data to disk
 
-    def push_Z( self, Zdata, time, workdir, image=None, imagemask=None, idx=None ):
+    def push_Z( self, Zdata, time, workdir, image=None, imagemask=None, inputpoints=None, idx=None ):
         if self.rootgrp != None:
             if idx is None:
                 idx = self.count.shape[0]
@@ -190,6 +195,9 @@ class NetCDFOutput:
 
             if not imagemask is None:
                 self.cam0masks[idx] = imagemask
+
+            if not inputpoints is None:
+                self.inputpoints[idx] = inputpoints
 
             #if idx%10 == 0:
             #    self.rootgrp.sync() # Flush data to disk
