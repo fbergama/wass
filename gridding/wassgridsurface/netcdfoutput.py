@@ -62,39 +62,39 @@ class NetCDFOutput:
         self.workdir.long_name = "WASS-like workdir number (ie. frame index)"
         self.workdir.field = "time, scalar, series"
 
-        self.xgrid = self.rootgrp.createVariable( "X_grid", "f8", ("X","Y",) )
+        self.xgrid = self.rootgrp.createVariable( "X_grid", "f8", ("Y","X",) )
         self.xgrid.units = "millimeter"
         self.xgrid.long_name = "X axis grid"
         self.xgrid.field = "X_grid, scalar, series"
 
-        self.ygrid = self.rootgrp.createVariable( "Y_grid", "f8", ("X","Y",) )
+        self.ygrid = self.rootgrp.createVariable( "Y_grid", "f8", ("Y","X",) )
         self.ygrid.units = "millimeter"
         self.ygrid.long_name = "Y axis grid"
         self.ygrid.field = "Y_grid, scalar, series"
 
-        self.kx = self.rootgrp.createVariable( "Kx", "f8", ("X","Y",) )
+        self.kx = self.rootgrp.createVariable( "Kx", "f8", ("Y","X",) )
         self.kx.units = "wavenumbers"
         self.kx.long_name = "Horizontal wavenumbers"
         self.kx.field = "Kx, scalar, series"
 
-        self.ky = self.rootgrp.createVariable( "Ky", "f8", ("X","Y",) )
+        self.ky = self.rootgrp.createVariable( "Ky", "f8", ("Y","X",) )
         self.ky.units = "wavenumbers"
         self.ky.long_name = "Vertical wavenumbers"
         self.ky.field = "Ky, scalar, series"
 
-        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "X","Y"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
+        self.Z = self.rootgrp.createVariable( "Z", "f4", ("count", "Y","X"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
         self.Z.units = "millimeter"
         self.Z.long_name = "Z data on time over the XY grid"
         self.Z.field = "Z, scalar, series"
 
-        self.maskZ = self.rootgrp.createVariable( "maskZ", "f4", ("X","Y") )
+        self.maskZ = self.rootgrp.createVariable( "maskZ", "f4", ("Y","X") )
         self.maskZ.units = ""
         self.maskZ.long_name = "Z mask over the XY grid"
         self.maskZ.field = "Z, scalar, series"
 
-        self.inputpoints = self.rootgrp.createVariable( "inputpoints", "f4", ("count","X","Y"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
-        self.inputpoints.units = "millimeter"
-        self.inputpoints.long_name = "Z mask over the XY grid"
+        self.inputpoints = self.rootgrp.createVariable( "inputpoints", "f4", ("count","Y","X"), chunksizes=(CHUNK_C,CHUNK_X,CHUNK_Y) )
+        self.inputpoints.units = "meter"
+        self.inputpoints.long_name = "WASS 3D points discretized into XY grid"
         self.inputpoints.field = "Z, scalar, series"
 
         self.vlen_t = self.rootgrp.createVLType(np.uint8, "vlenu8")
