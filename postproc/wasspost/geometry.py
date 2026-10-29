@@ -65,8 +65,11 @@ def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray, invert_y_axis = F
     while seeds_curr.shape[0] > 0:
         # move seeds_curr
         seeds_curr = seeds_curr + ray_d_norm
-        rounded_seeds_II = np.round( seeds_curr[:,1] ).astype(np.uint32)
-        rounded_seeds_JJ = np.round( seeds_curr[:,0] ).astype(np.uint32)
+        # keep the rounded positions as float until the bounds check: seeds leaving the grid
+        # on the low-index side become negative, and casting a negative float to an unsigned
+        # integer is undefined behaviour (it wraps on x86 but may saturate to 0 elsewhere)
+        rounded_seeds_II = np.round( seeds_curr[:,1] )
+        rounded_seeds_JJ = np.round( seeds_curr[:,0] )
 
         # check bounds
         good_seeds = np.logical_and( rounded_seeds_II>=0, rounded_seeds_II<ZZ.shape[0])
@@ -78,8 +81,8 @@ def compute_occlusion_mask( ZZ: np.ndarray, ray_d: np.ndarray, invert_y_axis = F
         seeds_curr = seeds_curr[ good_seeds, : ]
         seeds = seeds[ good_seeds, :]
         ray_d_norm = ray_d_norm[ good_seeds, :]
-        rounded_seeds_II = rounded_seeds_II[ good_seeds ]
-        rounded_seeds_JJ = rounded_seeds_JJ[ good_seeds ]
+        rounded_seeds_II = rounded_seeds_II[ good_seeds ].astype(np.uint32)   # all within bounds now, safe to cast
+        rounded_seeds_JJ = rounded_seeds_JJ[ good_seeds ].astype(np.uint32)
 
         # Sample elevation at seeds location
         z_val_at_seeds = ZZ[ rounded_seeds_II, rounded_seeds_JJ ]
