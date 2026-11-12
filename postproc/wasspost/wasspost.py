@@ -550,8 +550,8 @@ def visibilitymap( ncfile:str, cam:str, outputdir:str, numframes:int, into_nc:bo
                     print(f"Dimension 'vec3' not found. Creating with size 3.")
                     ds.createDimension("vec3", 3)
                     print("DONE!")
-                camray_dataset = ds.createVariable(camray_variable_name, datatype="f4", dimensions=("count","X","Y","vec3"), chunksizes=ds["Z"].chunking()+(3) )
-                print("%s variable created in NCfile"%incidentang_variable_name )
+                camray_dataset = ds.createVariable(camray_variable_name, datatype="f4", dimensions=("count","X","Y","vec3"), chunksizes=ds["Z"].chunking()+[3] )
+                print("%s variable created in NCfile"%camray_variable_name )
 
            # ----------------------
 
