@@ -789,10 +789,14 @@ void sgbm_dense_stereo( StereoMatchEnv& env )
     {
         cv::resize( env.right_crop, right_input, cv::Size(),scale,1.0,cv::INTER_CUBIC);
         cv::resize( env.left_crop, left_input, cv::Size(),scale,1.0,cv::INTER_CUBIC);
-    } else  if( scale<1.0 ) 
+    } else if( scale<1.0 ) 
     {
         cv::resize( env.right_crop, right_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
         cv::resize( env.left_crop, left_input, cv::Size(),scale,scale,cv::INTER_CUBIC);
+    } else {
+        // No scale
+        right_input = env.right_crop.clone();
+        left_input = env.left_crop.clone();
     }
     LOGI << "Dense-stereo input resize: " << env.right_crop.size() << " -> " << right_input.size() << std::endl;
 
